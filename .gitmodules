@@ -1,0 +1,3 @@
+[submodule "vendor/language-moonbit"]
+	path = vendor/language-moonbit
+	url = https://github.com/HCHogan/language-moonbit.git
