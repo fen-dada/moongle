@@ -34,6 +34,8 @@
           cmake
           ninja
           gnumake
+          zlib
+
           haskell.compiler.ghc912
           haskell.packages.ghc912.haskell-language-server
           cabal-install

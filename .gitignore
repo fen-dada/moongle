@@ -1,2 +1,4 @@
 dist-newstyle/*
 .direnv/*
+dist/*
+node_modules/*

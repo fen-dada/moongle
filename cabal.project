@@ -1,3 +1,6 @@
 packages:
   .
   ./vendor/language-moonbit
+
+allow-newer: 
+  wreq-effectful:base
