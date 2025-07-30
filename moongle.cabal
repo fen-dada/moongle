@@ -87,6 +87,8 @@ library
         tar,
         zlib,
         zip-archive,
+        log-effectful,
+        http-client,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -148,3 +150,7 @@ test-suite moongle-test
         bytestring,
         text,
         vector,
+        wreq-effectful,
+        log-effectful,
+        log-base,
+        lens
