@@ -82,7 +82,7 @@ downloadPackage (uname, pname, ver) = do
             let out = destDir </> rel
             createDirectoryIfMissing True (takeDirectory out)
             writeFile out bytes
-        s -> logInfo_ $ "Module failed to download: " <> uname <> "-" <> pname <> "-" <> ver <> "with status code: " <> T.pack (show s)
+        s -> logAttention_ $ "Module failed to download: " <> uname <> "-" <> pname <> "-" <> ver <> "with status code: " <> T.pack (show s)
 
 fetchAll :: (Error String :> es, Reader Config :> es, Wreq :> es, FileSystem :> es, Concurrent :> es, Log :> es) => Eff es ()
 fetchAll = do
