@@ -38,7 +38,7 @@ Async          ::= 'async'
 *Examples*
 
 * `(K, V) -> Int` – minimal function
-* `[T : Compare] (Array<T>, Int) -> Option<T>` - function with 
+* `[T : Compare] (Array<T>, Int) -> Option<T>` - function with generic parameters
 * `async (content? : Json, path~ : JsonPath = ..) -> Unit raise JsonDecodeError`
 
 ---
