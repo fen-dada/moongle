@@ -62,9 +62,10 @@ library
     exposed-modules:
         Moongle.Registry
         Moongle.Config
+        Moongle.General.Utils
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -85,6 +86,7 @@ library
         bytestring,
         tar,
         zlib,
+        zip-archive,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -141,4 +143,8 @@ test-suite moongle-test
     -- Test dependencies.
     build-depends:
         base ^>=4.21.0.0,
-        moongle
+        moongle,
+        effectful,
+        bytestring,
+        text,
+        vector,
