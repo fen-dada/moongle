@@ -74,6 +74,7 @@ downloadPackage (uname, pname, ver) = do
           logInfo_ $ "Module downloaded successfully: " <> uname <> "-" <> pname <> "-" <> ver
           let resp = (^. responseBody) respE
 
+          -- NOTE: unzip fail is considered a fatal error
           contents <- either (throwError_ . ("Failed to unzip module" <>)) pure (unZip resp)
 
           forM_ contents $ \(rawPath, bytes) -> do
