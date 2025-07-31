@@ -1,3 +1,6 @@
 [submodule "vendor/language-moonbit"]
 	path = vendor/language-moonbit
 	url = https://github.com/HCHogan/language-moonbit.git
+[submodule "vendor/servant-effectful"]
+	path = vendor/servant-effectful
+	url = https://github.com/Kleidukos/servant-effectful.git

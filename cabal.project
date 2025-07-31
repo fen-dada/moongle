@@ -1,6 +1,7 @@
 packages:
   .
   ./vendor/language-moonbit
+  ./vendor/servant-effectful
 
 allow-newer: 
   wreq-effectful:base

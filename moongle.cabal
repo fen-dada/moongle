@@ -67,6 +67,7 @@ library
         Moongle.Query.Parser
         Moongle.Query.Syntax
         Moongle.Server
+        Moongle.Server.Types
 
     -- Modules included in this library but not exported.
     other-modules:
@@ -95,6 +96,10 @@ library
         http-client,
         parsec,
         fuzzyfind,
+        servant,
+        servant-server,
+        servant-effectful,
+        time,
 
     -- Directories containing source files.
     hs-source-dirs:   src
