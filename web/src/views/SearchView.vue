@@ -44,11 +44,16 @@ const searchResults = computed(() => {
 
 <style scoped>
 .search-results-container {
+  display: flex;
+  flex: 1; /* Fill the parent .content-area */
+  flex-direction: column;
   width: 100%;
   max-width: 800px;
+  margin: 0 auto; /* Center the container horizontally */
   padding: 2rem;
   box-sizing: border-box;
   font-family: 'Inter', sans-serif;
+  /* background-color is now inherited from #app-layout */
 }
 
 .results-title {

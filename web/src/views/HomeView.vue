@@ -69,16 +69,15 @@ const handleSearch = () => {
 /* 保持大部分样式不变，只修改和添加搜索按钮相关的样式 */
 .page-container {
   display: flex;
+  flex: 1; /* Fill the parent .content-area */
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  justify-content: center; /* Center the content vertically */
+  align-items: center; /* Center the content horizontally */
   width: 100%;
-  min-height: calc(100vh - 64px);
-  background-color: #FEFAF7;
+  /* background-color is now inherited from #app-layout */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  position: relative;
-  padding: 2rem;
   box-sizing: border-box;
+  padding-bottom: 15vh; /* Push content up from the vertical center */
 }
 
 .content-wrapper {
@@ -87,6 +86,9 @@ const handleSearch = () => {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
+  padding: 2rem;
+  box-sizing: border-box;
+  /* The negative margin was a mistake, removing it */
 }
 
 .logo {
