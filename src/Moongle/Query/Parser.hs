@@ -32,4 +32,7 @@ pTyQuery = do
 pNmQuery :: Parser Query
 pNmQuery = do
   mpath <- optionMaybe (pTPath <* reservedOp OpDot)
-  NmQuery mpath <$> pTCon
+  NmQuery . NameQuery mpath <$> pTCon
+
+pQuery :: Parser Query
+pQuery = try pTyQuery <|> pNmQuery
