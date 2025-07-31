@@ -63,6 +63,9 @@ library
         Moongle.Registry
         Moongle.Config
         Moongle.General.Utils
+        Moongle.Query
+        Moongle.Query.Parser
+        Moongle.Query.Syntax
 
     -- Modules included in this library but not exported.
     other-modules:
@@ -89,6 +92,7 @@ library
         zip-archive,
         log-effectful,
         http-client,
+        parsec,
 
     -- Directories containing source files.
     hs-source-dirs:   src

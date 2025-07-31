@@ -1,0 +1,2 @@
+module Moongle.Query where
+
