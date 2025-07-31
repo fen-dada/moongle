@@ -1,177 +1,204 @@
+<script setup>
+import { ref, watch, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+
+const route = useRoute();
+const router = useRouter();
+const searchQuery = ref('');
+
+// 计算属性，判断当前是否为主页
+const isHomePage = computed(() => route.name === 'Home');
+
+// 搜索处理函数
+const handleSearch = () => {
+  if (!searchQuery.value.trim()) {
+    return;
+  }
+  router.push({
+    name: 'Search',
+    query: { q: searchQuery.value },
+  });
+};
+
+// 监听路由变化，确保搜索框内容与URL参数同步
+watch(
+  () => route.query.q,
+  (newQuery) => {
+    searchQuery.value = newQuery || '';
+  },
+  { immediate: true }
+);
+</script>
+
 <template>
-  <div class="page-container">
-    <main class="content-wrapper">
-      <div class="logo">
-        <!--
-        <svg class="logo-icon" width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C13.6559 3 15.2285 3.42479 16.6001 4.17161" stroke="#A855F7" stroke-width="2" stroke-linecap="round"/>
-          <path d="M12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9Z" fill="#A855F7"/>
-        </svg>
-        -->
-        <div
-          class="moongle-icon"
-          :style="{
-            maskImage: `url(${logoIconUrl})`,
-            webkitMaskImage: `url(${logoIconUrl})`
-          }"
-        ></div>
-        <h1 class="logo-text">moongle</h1>
+  <div id="app-layout">
+    <header class="app-header">
+      <div class="header-left">
+        <router-link to="/" class="logo">
+          <span class="logo-text">moongle</span>
+        </router-link>
       </div>
 
-      <div class="search-bar-container">
-        <input type="text" class="search-input">
-        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M21 21L16.65 16.65" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+      <!-- 顶栏搜索框，仅在非主页显示 -->
+      <div class="header-center" v-if="!isHomePage">
+        <form class="header-search-bar-container" @submit.prevent="handleSearch">
+          <input
+            type="text"
+            class="header-search-input"
+            placeholder="Search for..."
+            v-model="searchQuery"
+            aria-label="Search"
+          >
+          <button type="submit" class="header-search-button" aria-label="Submit search">
+            <svg class="header-search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M21 21L16.65 16.65" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </form>
       </div>
-      <p class="search-hint">Search Moonbit docs & APIs</p>
+
+      <nav class="main-nav">
+        <router-link to="/examples">Tutorial</router-link>
+        <router-link to="/stats">Stats</router-link>
+        <a href="https://github.com/your-repo" target="_blank" rel="noopener noreferrer" class="github-link">
+          <svg height="20" viewBox="0 0 16 16" version="1.1" width="20" aria-hidden="true"><path fill-rule="evenodd" fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </header>
+
+    <main class="content-area">
+      <router-view />
     </main>
-
-    <footer class="page-footer">
-      <a href="#">About</a>
-      <a href="#">Privacy</a>
-      <a href="#">Terms</a>
-    </footer>
   </div>
 </template>
 
-// src/App.vue
-<script setup>
-import { ref } from 'vue'
-import logoIconUrl from './assets/moongle-logo.png'
-
-const searchQuery = ref('')
-</script>
-
-<style scoped></style>
-/* src/App.vue */
 <style scoped>
-/* 全局和布局 */
-.page-container {
+#app-layout {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
   min-height: 100vh;
-  background-color: #FEFAF7;;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  position: relative; /* 为页脚定位提供参照 */
-  padding-bottom: 80px; /* 为页脚留出空间 */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f8fafc;
 }
-
-.content-wrapper {
+.app-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.5rem; /* Logo 和搜索框之间的间距 */
+  padding: 0 2rem;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  height: 64px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
-
-/* Logo 样式 */
+.header-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
 .logo {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  text-decoration: none;
 }
-
+.logo-img {
+  height: 30px;
+  margin-right: 0.6rem;
+}
 .logo-text {
-  font-size: 6rem; /* 大字体 */
-  font-weight: 700;
-  margin: -1.5rem 0 0 0;
-  letter-spacing: 0.02em;
-  /* 关键的渐变文字效果 */
-  background: linear-gradient(to left, #D474FA, #685ff8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-
-  /* --- 新增以下属性来禁止文本选中 --- */
-  -webkit-user-select: none; /* 为了兼容 Safari 和旧版 Chrome */
-  -moz-user-select: none;    /* 为了兼容 Firefox */
-  -ms-user-select: none;     /* 为了兼容 IE/Edge */
-  user-select: none;         /* 标准语法 */
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+.header-center {
+  flex: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center; /* 确保搜索框垂直居中 */
+  padding: 0 2rem;
+}
+.main-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2rem;
+  flex: 1;
+}
+.main-nav a {
+  text-decoration: none;
+  color: #475569;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.main-nav a:hover {
+  color: #4f46e5;
+}
+.main-nav a.router-link-exact-active {
+  color: #4f46e5;
+  font-weight: 600;
+}
+.external-icon {
+  margin-bottom: 2px;
+  color: #94a3b8;
+}
+.main-nav a:hover .external-icon {
+  color: #4f46e5;
+}
+.content-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
-/* 搜索框样式 */
-.search-bar-container {
+/* 顶栏搜索框样式 (借鉴 HomeView) */
+.header-search-bar-container {
   position: relative;
   width: 100%;
-  max-width: 580px; /* 限制最大宽度 */
+  max-width: 580px;
 }
-
-.search-input {
+.header-search-input {
   width: 100%;
-  padding: 0.75rem 3rem 0.75rem 1.5rem;
-  font-size: 1rem;
+  height: 38px; /* 调整高度以更好地匹配导航链接 */
+  padding: 0 3.5rem 0 1.5rem; /* 移除上下内边距，让 flexbox 处理对齐 */
+  font-size: 0.9rem;
   border: 1px solid #e5e7eb;
-  border-radius: 9999px; /* 圆角 */
+  border-radius: 9999px;
   box-shadow: 0 1px 6px rgba(32, 33, 36, 0.1);
   transition: box-shadow 0.2s ease;
-  box-sizing: border-box; /* 确保 padding 不会撑大宽度 */
+  box-sizing: border-box;
+  display: flex; /* 新增 */
+  align-items: center; /* 新增 */
 }
-
-.search-input:focus {
+.header-search-input:focus {
   outline: none;
   box-shadow: 0 2px 8px rgba(32, 33, 36, 0.15);
 }
-
-.search-icon {
+.header-search-button {
   position: absolute;
   top: 50%;
-  right: 1.5rem;
+  right: 0.5rem;
   transform: translateY(-50%);
-  pointer-events: none; /* 让图标不影响鼠标点击 */
-
-}
-
-.search-hint {
-  font-size: 0.875rem; /* 14px，比输入框的字体小 */
-  color: #9ca3af;     /* 使用一个柔和的灰色 */
-  margin-top: 0.75rem; /* 与搜索框保持一点距离 */
-  /* --- 新增以下属性来禁止文本选中 --- */
-  -webkit-user-select: none; /* 为了兼容 Safari 和旧版 Chrome */
-  -moz-user-select: none;    /* 为了兼容 Firefox */
-  -ms-user-select: none;     /* 为了兼容 IE/Edge */
-  user-select: none;         /* 标准语法 */
-}
-
-.moongle-icon {
-  width: 100px; /* 稍微增大了图标尺寸 */
-  height: 100px;
-
-  /* 将渐变色作为背景 */
-  background: linear-gradient(to right, #8954f4, #a45af4);
-
-  /* --- 关键改动在这里 --- */
-  /* `mask-image` 已通过内联 style 绑定 */
-
-  /* 删除了 mask-mode: luminance，让其使用默认的 alpha (透明度) 模式 */
-
-  /* 确保遮罩正确显示 */
-  mask-size: contain; /* 改回 contain，因为它对透明 PNG 效果最好 */
-  -webkit-mask-size: contain;
-  mask-repeat: no-repeat;
-  -webkit-mask-repeat: no-repeat;
-  mask-position: center;
-  -webkit-mask-position: center;
-}
-
-/* 页脚样式 */
-.page-footer {
-  position: absolute;
-  bottom: 2rem;
+  background: transparent;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 50%;
   display: flex;
-  gap: 1.5rem;
+  align-items: center;
+  justify-content: center;
 }
-
-.page-footer a {
-  font-size: 0.875rem;
-  color: #6b7280;
-  text-decoration: none;
-  transition: color 0.2s ease;
+.header-search-button:hover .header-search-icon path {
+  stroke: #685ff8;
 }
-
-.page-footer a:hover {
-  color: #111827;
+.header-search-icon path {
+  transition: stroke 0.2s ease;
 }
 </style>
