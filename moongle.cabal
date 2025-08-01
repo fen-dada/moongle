@@ -68,6 +68,8 @@ library
         Moongle.Query.Syntax
         Moongle.Server
         Moongle.Server.Types
+        Moongle.Server.Handler
+        Moongle.Env
 
     -- Modules included in this library but not exported.
     other-modules:
@@ -100,6 +102,7 @@ library
         servant-server,
         servant-effectful,
         time,
+        warp,
 
     -- Directories containing source files.
     hs-source-dirs:   src

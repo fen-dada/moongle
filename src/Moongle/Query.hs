@@ -15,19 +15,16 @@ import Effectful.Reader.Static
 import Language.Moonbit.Mbti
 import Language.Moonbit.Mbti.Syntax
 import Moongle.Config
-import Moongle.Query.Parser
+import Moongle.Env
 import Moongle.Query.Syntax
 import System.FilePath
 import Text.FuzzyFind
 import Prelude hiding (readFile)
 
--- data QueryResult = QueryResult
---   { modulePath :: ModulePath, decl
-
 data QueryEntry = QueryEntry {qeModulePath :: ModulePath, qeDecl :: Decl}
   deriving (Show, Eq)
 
-newtype QueryResult = QueryResult {qrDecls :: [QueryEntry]}
+newtype QueryResult = QueryResult {qrDecls :: [(Alignment, QueryEntry)]}
   deriving (Show, Eq)
 
 collectMbtiFiles :: (FileSystem :> es, Reader Config :> es) => Eff es [FilePath]
@@ -61,15 +58,21 @@ parseAllMbti = do
         pure [mbti]
   pure $ concat mbtils
 
-query :: (Reader Config :> es, FileSystem :> es, Log :> es, Error String :> es) => Query -> Eff es QueryResult
+query :: (Reader Env :> es, Log :> es) => Query -> Eff es QueryResult
 query (NmQuery (NameQuery _ (TCon q _))) = do
-  mbtis <- parseAllMbti
+  Env mbtis <- ask
+  -- NOTE: We only handle function declarations for now
   let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> [QueryEntry mp d | d@FnDecl {} <- decls]) mbtis
-  let result = fuzzyFindOn (\(QueryEntry _ (FnDecl f)) -> makeFunString f) [q] flattenedDecls
-  pure $ QueryResult $ map snd result
+  let result = fuzzyFindOn getFunString [q] flattenedDecls
+  pure $ QueryResult result
   where
     makeFunString :: FnDecl' -> String
     makeFunString (FnDecl' (FnSig name _ _ _ _) _ _) = name
+
+    -- NOTE: SAFETY: We filtered the decls
+    getFunString :: QueryEntry -> String
+    getFunString (QueryEntry _ (FnDecl f)) = makeFunString f
+    getFunString _ = error "Impossible"
 query _ = do
   logAttention_ "Type queries are not yet implemented"
   pure $ QueryResult []
