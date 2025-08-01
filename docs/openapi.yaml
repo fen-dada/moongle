@@ -1,0 +1,197 @@
+openapi: 3.1.0
+info:
+  title: Moongle API
+  version: "1.0.0"
+  description: |
+    api spec for moongle
+
+servers:
+  - url: https://moongle.example.com    # Example
+    description: Production server
+
+paths:
+  /api/search:
+    post:
+      summary: Search MoonBit packages / declarations
+      operationId: search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiRequest_SearchReq'
+      responses:
+        "200":
+          description: Successful search result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_SearchRes'
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Empty'
+  /api/stats:
+    get:
+      summary: Retrieve current index statistics
+      operationId: stats
+      responses:
+        "200":
+          description: Statistics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Stats'
+        default:
+          description: Error response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Empty'
+
+components:
+  schemas:
+    ApiRequest_SearchReq:
+      type: object
+      required: [dat]
+      properties:
+        dat:
+          $ref: '#/components/schemas/SearchReq'
+
+    ApiResponse_SearchRes:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            dat:
+              $ref: '#/components/schemas/SearchRes'
+
+    ApiResponse_Stats:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            dat:
+              $ref: '#/components/schemas/Stats'
+
+    ApiResponse_Empty:
+      $ref: '#/components/schemas/ApiResponseBase'
+
+    #######################################################################
+    #  Core envelope types                                                #
+    #######################################################################
+    ApiResponseBase:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+        dat:
+          nullable: true
+        err:
+          nullable: true
+          $ref: '#/components/schemas/ApiError'
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: SEARCH_NOT_AVAILABLE
+        message:
+          type: string
+          example: index service temporarily unavailable
+
+    #######################################################################
+    #  Domain models                                                      #
+    #######################################################################
+    SearchReq:
+      type: object
+      required: [q]
+      properties:
+        q:
+          type: string
+          description: query string
+        limit:
+          type: integer
+          minimum: 1
+          example: 20
+        offset:
+          type: integer
+          minimum: 0
+          example: 0
+        lang:
+          type: string
+          description: two-letter or ISO lang tag
+          example: en
+        filters:
+          $ref: '#/components/schemas/SearchFilters'
+
+    SearchFilters:
+      type: object
+      properties:
+        versions:
+          type: array
+          items:
+            type: string
+        visibility:
+          type: string
+          enum: [public, private, all]
+        effects:
+          type: array
+          items:
+            type: string
+
+    SearchHit:
+      type: object
+      required: [user, mod, package, decl, score]
+      properties:
+        user:
+          type: string
+        mod:
+          type: string
+        package:
+          type: array
+          items:
+            type: string
+        decl:
+          type: string
+        score:
+          type: integer
+          format: int32
+          description: match score (higher = better)
+
+    SearchRes:
+      type: object
+      required: [hitsTotal, items]
+      properties:
+        hitsTotal:
+          type: integer
+          example: 347
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+
+    Stats:
+      type: object
+      required: [packages, modules, functions, lastIndexed]
+      properties:
+        packages:
+          type: integer
+          example: 1523
+        modules:
+          type: integer
+          example: 8341
+        functions:
+          type: integer
+          example: 45872
+        lastIndexed:
+          type: string
+          format: date-time
+          example: "2025-08-01T06:42:15Z"
+
