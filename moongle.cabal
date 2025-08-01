@@ -62,9 +62,15 @@ library
     exposed-modules:
         Moongle.Registry
         Moongle.Config
+        Moongle.General.Utils
+        Moongle.Query
+        Moongle.Query.Parser
+        Moongle.Query.Syntax
+        Moongle.Server
+        Moongle.Server.Types
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -85,6 +91,15 @@ library
         bytestring,
         tar,
         zlib,
+        zip-archive,
+        log-effectful,
+        http-client,
+        parsec,
+        fuzzyfind,
+        servant,
+        servant-server,
+        servant-effectful,
+        time,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -141,4 +156,12 @@ test-suite moongle-test
     -- Test dependencies.
     build-depends:
         base ^>=4.21.0.0,
-        moongle
+        moongle,
+        effectful,
+        bytestring,
+        text,
+        vector,
+        wreq-effectful,
+        log-effectful,
+        log-base,
+        lens

@@ -38,6 +38,7 @@
 
           haskell.compiler.ghc912
           haskell.packages.ghc912.haskell-language-server
+          ormolu
           cabal-install
         ];
       in {
