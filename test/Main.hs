@@ -9,10 +9,12 @@ import Effectful.FileSystem
 import Effectful.Log
 import Effectful.Reader.Static
 import Effectful.Wreq
+import Moongle.Server
 import Log.Backend.StandardOutput
 import Moongle.Config
 import Moongle.Registry
-import Control.Lens
+import Moongle.Query
+import Moongle.Env
 
 -- main :: IO ()
 -- main = do
@@ -32,6 +34,12 @@ testConfig =
       _parallel = 32
     }
 
+serverTest :: (Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, Wreq :> es, IOE :> es) => Eff es ()
+serverTest = do
+  fetchAll
+  mbtis <- parseAllMbti
+  runReader (Env mbtis) server
+
 runTest :: Eff '[Concurrent, FileSystem, Wreq, Reader Config, Log, Error String, IOE] () -> IO ()
 runTest action = do
   a <- runEff $ withStdOutLogger $ \stdoutLogger ->
@@ -42,4 +50,4 @@ runTest action = do
 
 
 main :: IO ()
-main = runTest fetchAll
+main = runTest serverTest
