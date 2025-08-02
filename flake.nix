@@ -40,7 +40,21 @@
           haskell.packages.ghc912.haskell-language-server
           ormolu
           cabal-install
+
+          elmPackages.elm
+          elmPackages.elm-format
+          elmPackages.elm-language-server
+          elmPackages.elm-test
+          elmPackages.elm-review
+          elmPackages.elm-live
+          elmPackages.nodejs
+
         ];
+
+        env = {
+          # NODE_OPTIONS = "--openssl-legacy-provider";
+          # CHOKIDAR_USEPOLLING = 1;
+        };
       in {
         _module.args.pkgs = import inputs.nixpkgs {
           inherit system;
@@ -48,11 +62,11 @@
         };
         devShells = {
           default = pkgs.mkShell {
-            inherit packages;
+            inherit packages env;
           };
 
           clang = pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} {
-            inherit packages;
+            inherit packages env;
           };
         };
       };
