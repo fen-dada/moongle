@@ -61,6 +61,7 @@ library
     -- Modules exported by the library.
     exposed-modules:
         Moongle.Registry
+        Moongle.Registry.Types
         Moongle.Config
         Moongle.General.Utils
         Moongle.Query
@@ -100,6 +101,7 @@ library
         fuzzyfind,
         servant,
         servant-server,
+        servant-client,
         servant-effectful,
         time,
         warp,
@@ -167,4 +169,5 @@ test-suite moongle-test
         wreq-effectful,
         log-effectful,
         log-base,
-        lens
+        lens,
+        filepath
