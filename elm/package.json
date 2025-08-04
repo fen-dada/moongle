@@ -1,8 +1,8 @@
 {
-  "name": "vite-elm-template",
-  "author": "Lindsay Wardell",
-  "description": "A default template for building Elm applications using Vite.",
-  "version": "3.0.0",
+  "name": "moongle",
+  "author": "Hank Hogan",
+  "description": "ui for moongle",
+  "version": "0.0.1",
   "license": "MIT",
   "type": "module",
   "scripts": {

@@ -24,6 +24,7 @@ helloWorld model =
             [ button [ onClick Increment ] [ text "+" ]
             , text <| "Count is: " ++ String.fromInt model
             , button [ onClick Decrement ] [ text "-" ]
+            , button [ onClick Reset ] [ text "Reset" ]
             ]
         , p []
             [ text "Edit "

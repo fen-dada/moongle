@@ -21,6 +21,9 @@ update msg model =
 
         Decrement ->
             model - 1
+        
+        Reset ->
+            0
 
 
 view : Int -> Html Msg
