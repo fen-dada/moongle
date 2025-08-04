@@ -56,7 +56,11 @@ parseAllMbti = do
       Right mbti -> do
         logInfo_ $ "Successfully parsed " <> T.pack path
         pure [mbti]
-  pure $ concat mbtils
+  let mbtis = concat mbtils
+  let num = length mbtis
+  logInfo_ $ "Parsed " <> T.pack (show num) <> " MBTI files, " <> T.pack (show num) <> " successful"
+  when (null mbtis) $ throwError @String "No MBTI files found or parsed"
+  pure mbtis
 
 query :: (Reader Env :> es, Log :> es) => Query -> Eff es QueryResult
 query (NmQuery (NameQuery _ (TCon q _))) = do
