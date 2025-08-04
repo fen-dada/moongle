@@ -8,6 +8,7 @@ import Effectful
 import Effectful.Error.Static
 import Effectful.Log
 import Effectful.Reader.Static
+import Language.Moonbit.Mbti.Pretty (renderDecl)
 import Language.Moonbit.Mbti.Syntax
 import Moongle.Env
 import Moongle.Query
@@ -31,15 +32,12 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
           toHits :: (Alignment, QueryEntry) -> SearchHit
           toHits (Alignment {score}, QueryEntry (ModulePath u m pkgs) decl) =
             SearchHit
-              { user = nameText u,
-                mod = nameText m,
-                package = fmap nameText pkgs,
-                decl = T.pack $ show decl,
+              { user = T.pack u,
+                mod = T.pack m,
+                package = fmap T.pack pkgs,
+                decl = renderDecl decl,
                 score = score
               }
-
-          nameText :: Name -> T.Text
-          nameText = T.pack . show
 
       let res = SearchRes (length hits) hits
       logInfo_ $ "Search query: " <> qt <> ", found " <> T.pack (show (length hits)) <> " results"
