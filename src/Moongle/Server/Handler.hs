@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Moongle.Server.Handler where
 
@@ -45,6 +46,7 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
 
 statsHandler :: (Log :> es, Reader Env :> es, Error S.ServerError :> es) => Eff es (ApiResponse Stats)
 statsHandler = do
-  Env env <- ask @Env
-  
-  undefined
+  Env env lastIndexed <- ask @Env
+  let modules = length env
+  let decls = sum $ fmap (\(MbtiFile _ _ d) -> length d) env
+  pure $ ApiResponse "ok" (Just $ Stats {..}) Nothing

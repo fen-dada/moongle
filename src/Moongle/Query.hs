@@ -60,7 +60,7 @@ parseAllMbti = do
 
 query :: (Reader Env :> es, Log :> es) => Query -> Eff es QueryResult
 query (NmQuery (NameQuery _ (TCon q _))) = do
-  Env mbtis <- ask
+  Env mbtis _ <- ask
   -- NOTE: We only handle function declarations for now
   let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> [QueryEntry mp d | d@FnDecl {} <- decls]) mbtis
   let result = fuzzyFindOn getFunString [q] flattenedDecls
@@ -76,9 +76,3 @@ query (NmQuery (NameQuery _ (TCon q _))) = do
 query _ = do
   logAttention_ "Type queries are not yet implemented"
   pure $ QueryResult []
-
--- ppDecl :: Decl -> (T.Text, T.Text) -- (Decl kind, Decl content)
--- ppDecl (FnDecl (FnDecl' (FnSig name _ _ _ _) _ body)) =
---   ( "fn",
---     T.pack $ "fn " ++ show name ++ " = " ++ show body
---   )

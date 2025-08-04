@@ -17,6 +17,7 @@ import Moongle.Query
 import Moongle.Registry
 import Moongle.Server
 import System.FilePath
+import Data.Time
 
 -- main :: IO ()
 -- main = do
@@ -43,7 +44,8 @@ serverTest :: (Error String :> es, Log :> es, Reader Config :> es, FileSystem :>
 serverTest = do
   fetchAll
   mbtis <- parseAllMbti
-  runReader (Env mbtis) server
+  utcNow <- liftIO getCurrentTime
+  runReader (Env mbtis utcNow) server
 
 runTest :: Eff '[Concurrent, FileSystem, Wreq, Reader Config, Log, Error String, IOE] () -> IO ()
 runTest action = do

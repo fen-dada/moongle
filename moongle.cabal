@@ -170,4 +170,5 @@ test-suite moongle-test
         log-effectful,
         log-base,
         lens,
-        filepath
+        filepath,
+        time

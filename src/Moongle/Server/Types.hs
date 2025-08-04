@@ -86,8 +86,7 @@ instance FromJSON SearchRes
 instance ToJSON SearchRes
 
 data Stats = Stats
-  { packages :: Int,
-    modules :: Int,
+  { modules :: Int,
     decls :: Int,
     lastIndexed :: UTCTime
   }
