@@ -44,9 +44,17 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
       logInfo_ $ "Search query: " <> qt <> ", found " <> T.pack (show (length hits)) <> " results"
       pure $ ApiResponse "ok" (Just res) Nothing
 
-statsHandler :: (Log :> es, Reader Env :> es, Error S.ServerError :> es) => Eff es (ApiResponse Stats)
+statsHandler :: (Log :> es, Reader Env :> es) => Eff es (ApiResponse Stats)
 statsHandler = do
   Env env lastIndexed <- ask @Env
   let modules = length env
   let decls = sum $ fmap (\(MbtiFile _ _ d) -> length d) env
+  logInfo_ $
+    "Stats query: "
+      <> T.pack (show modules)
+      <> " modules, "
+      <> T.pack (show decls)
+      <> " declarations, "
+      <> T.pack (show lastIndexed)
+      <> " last indexed"
   pure $ ApiResponse "ok" (Just $ Stats {..}) Nothing

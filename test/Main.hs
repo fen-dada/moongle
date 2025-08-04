@@ -42,7 +42,7 @@ makeTestConfig = do
 
 serverTest :: (Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, Wreq :> es, IOE :> es) => Eff es ()
 serverTest = do
-  fetchAll
+  fetchAllPackages
   mbtis <- parseAllMbti
   utcNow <- liftIO getCurrentTime
   runReader (Env mbtis utcNow) server
