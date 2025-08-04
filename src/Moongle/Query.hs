@@ -30,7 +30,12 @@ newtype QueryResult = QueryResult {qrDecls :: [(Alignment, QueryEntry)]}
 collectMbtiFiles :: (FileSystem :> es, Reader Config :> es) => Eff es [FilePath]
 collectMbtiFiles = do
   lp <- asks (^. moongleStoragePath)
-  go $ T.unpack lp
+  home <- getHomeDirectory
+  -- We use the core library bundled with moonbit toolchain here
+  let corePath = home </> ".moon" </> "lib" </> "core"
+  coreMbtiPaths <- go corePath
+  mbtiPaths <- go $ T.unpack lp
+  pure $ coreMbtiPaths ++ mbtiPaths
   where
     go :: (FileSystem :> es) => FilePath -> Eff es [FilePath]
     go fp = do
@@ -58,7 +63,14 @@ parseAllMbti = do
         pure [mbti]
   let mbtis = concat mbtils
   let num = length mbtis
-  logInfo_ $ "Parsed " <> T.pack (show num) <> " MBTI files, " <> T.pack (show num) <> " successful"
+  logInfo_ $
+    "Parsed "
+      <> T.pack (show $ length paths)
+      <> " MBTI files, "
+      <> T.pack (show num)
+      <> " successful, "
+      <> T.pack (show $ length paths - num)
+      <> " failed"
   when (null mbtis) $ throwError @String "No MBTI files found or parsed"
   pure mbtis
 
