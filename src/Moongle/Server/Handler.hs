@@ -45,4 +45,6 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
 
 statsHandler :: (Log :> es, Reader Env :> es, Error S.ServerError :> es) => Eff es (ApiResponse Stats)
 statsHandler = do
+  Env env <- ask @Env
+  
   undefined

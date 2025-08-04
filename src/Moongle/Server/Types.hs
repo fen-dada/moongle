@@ -7,6 +7,7 @@ import Data.Text qualified as T
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 import Servant
+import Language.Moonbit.Mbti.Syntax
 
 data ApiError = ApiError
   { code :: T.Text,
@@ -87,7 +88,7 @@ instance ToJSON SearchRes
 data Stats = Stats
   { packages :: Int,
     modules :: Int,
-    functions :: Int,
+    decls :: Int,
     lastIndexed :: UTCTime
   }
   deriving (Show, Eq, Generic)

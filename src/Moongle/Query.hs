@@ -76,3 +76,9 @@ query (NmQuery (NameQuery _ (TCon q _))) = do
 query _ = do
   logAttention_ "Type queries are not yet implemented"
   pure $ QueryResult []
+
+-- ppDecl :: Decl -> (T.Text, T.Text) -- (Decl kind, Decl content)
+-- ppDecl (FnDecl (FnDecl' (FnSig name _ _ _ _) _ body)) =
+--   ( "fn",
+--     T.pack $ "fn " ++ show name ++ " = " ++ show body
+--   )
