@@ -6,8 +6,8 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Text qualified as T
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
-import Servant
 import Language.Moonbit.Mbti.Syntax
+import Servant
 
 data ApiError = ApiError
   { code :: T.Text,

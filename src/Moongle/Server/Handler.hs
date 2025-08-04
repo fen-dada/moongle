@@ -18,6 +18,7 @@ import Moongle.Server.Types
 import Servant qualified as S
 import Text.FuzzyFind
 import Text.Parsec (parse)
+import Prelude hiding (mod)
 
 searchHandler :: (Log :> es, Reader Env :> es, Error S.ServerError :> es) => ApiRequest SearchReq -> Eff es (ApiResponse SearchRes)
 searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
@@ -31,14 +32,12 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
           hits = fmap toHits qrDecls
 
           toHits :: (Alignment, QueryEntry) -> SearchHit
-          toHits (Alignment {score}, QueryEntry (ModulePath u m pkgs) decl) =
-            SearchHit
-              { user = T.pack u,
-                mod = T.pack m,
-                package = fmap T.pack pkgs,
-                decl = renderDecl decl,
-                score = score
-              }
+          toHits (Alignment {score}, QueryEntry (ModulePath u m pkgs) decl') =
+            let user = T.pack u
+                mod = T.pack m
+                package = fmap T.pack pkgs
+                decl = renderDecl decl'
+             in SearchHit {..}
 
       let res = SearchRes (length hits) hits
       logInfo_ $ "Search query: " <> qt <> ", found " <> T.pack (show (length hits)) <> " results"
