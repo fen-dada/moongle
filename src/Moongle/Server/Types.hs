@@ -7,6 +7,7 @@ import Data.Text qualified as T
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 import Servant
+import Language.Moonbit.Mbti.Syntax
 
 data ApiError = ApiError
   { code :: T.Text,
@@ -61,13 +62,12 @@ instance FromJSON SearchFilters
 instance ToJSON SearchFilters
 
 data SearchHit = SearchHit
-  { package :: T.Text,
-    modulePath :: T.Text,
-    declId :: Int,
-    name :: T.Text,
-    sig :: T.Text,
-    doc :: Maybe T.Text,
-    score :: Double
+  { user :: T.Text,
+    mod :: T.Text,
+    package :: [T.Text],
+    decl :: T.Text,
+    -- doc :: Maybe T.Text,
+    score :: Int
   }
   deriving (Show, Eq, Generic)
 
@@ -86,9 +86,8 @@ instance FromJSON SearchRes
 instance ToJSON SearchRes
 
 data Stats = Stats
-  { packages :: Int,
-    modules :: Int,
-    functions :: Int,
+  { modules :: Int,
+    decls :: Int,
     lastIndexed :: UTCTime
   }
   deriving (Show, Eq, Generic)
@@ -103,4 +102,4 @@ type SearchAPI = "search" :> JSONReq SearchReq :> Post '[JSON] (ApiResponse Sear
 
 type StatsAPI = "stats" :> Get '[JSON] (ApiResponse Stats)
 
-type MoongleAPI = "v1" :> (SearchAPI :<|> StatsAPI)
+type MoongleAPI = "api" :> (SearchAPI :<|> StatsAPI)

@@ -1,14 +1,11 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Moongle.Registry where
 
 import Control.Exception qualified as E
 import Control.Lens
 import Control.Monad
-import Data.Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -21,28 +18,12 @@ import Effectful.FileSystem.IO.ByteString.Lazy
 import Effectful.Log
 import Effectful.Reader.Static
 import Effectful.Wreq
-import GHC.Generics (Generic)
 import Moongle.Config
 import Moongle.General.Utils
+import Moongle.Registry.Types
 import Network.HTTP.Client (HttpException)
 import System.FilePath
 import Prelude hiding (writeFile)
-
-data ModuleInfo = ModuleInfo {_name :: T.Text, _version :: T.Text, _description :: Maybe T.Text}
-  deriving (Show, Generic)
-
-instance FromJSON ModuleInfo where
-  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = drop 1}
-
-makeLenses ''ModuleInfo
-
-newtype Registry = Registry {_modules :: V.Vector ModuleInfo}
-  deriving (Show, Generic)
-
-instance FromJSON Registry where
-  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = drop 1}
-
-makeLenses ''Registry
 
 fetchRegistry :: (Wreq :> es, Reader Config :> es, Log :> es) => Eff es Registry
 fetchRegistry = do

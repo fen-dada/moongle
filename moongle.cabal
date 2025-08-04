@@ -61,6 +61,7 @@ library
     -- Modules exported by the library.
     exposed-modules:
         Moongle.Registry
+        Moongle.Registry.Types
         Moongle.Config
         Moongle.General.Utils
         Moongle.Query
@@ -68,6 +69,8 @@ library
         Moongle.Query.Syntax
         Moongle.Server
         Moongle.Server.Types
+        Moongle.Server.Handler
+        Moongle.Env
 
     -- Modules included in this library but not exported.
     other-modules:
@@ -98,8 +101,10 @@ library
         fuzzyfind,
         servant,
         servant-server,
+        servant-client,
         servant-effectful,
         time,
+        warp,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -164,4 +169,6 @@ test-suite moongle-test
         wreq-effectful,
         log-effectful,
         log-base,
-        lens
+        lens,
+        filepath,
+        time
