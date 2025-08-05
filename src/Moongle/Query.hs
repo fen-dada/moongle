@@ -4,6 +4,7 @@ module Moongle.Query where
 
 import Control.Lens
 import Control.Monad
+import Data.Maybe
 import Data.Text qualified as T
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Effectful
@@ -78,17 +79,26 @@ query :: (Reader Env :> es, Log :> es) => Query -> Eff es QueryResult
 query (NmQuery (NameQuery _ (TCon q _))) = do
   Env mbtis _ <- ask
   -- NOTE: We only handle function declarations for now
-  let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> [QueryEntry mp d | d@FnDecl {} <- decls]) mbtis
-  let result = fuzzyFindOn getFunString [q] flattenedDecls
+  let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> mapMaybe (mkEntry mp) decls) mbtis
+  let result = fuzzyFindOn getSearchString [q] flattenedDecls
   pure $ QueryResult result
   where
-    makeFunString :: FnDecl' -> String
-    makeFunString (FnDecl' (FnSig name _ _ _ _) _ _) = name
+    mkEntry mp d@FnDecl {} = Just (QueryEntry mp d)
+    mkEntry mp d@TypeDecl {} = Just (QueryEntry mp d)
+    mkEntry mp d@ConstDecl {} = Just (QueryEntry mp d)
+    mkEntry mp d@EnumDecl {} = Just (QueryEntry mp d)
+    mkEntry _ _ = Nothing
+
+    mkFunString :: FnDecl' -> String
+    mkFunString (FnDecl' (FnSig name _ _ _ _) _ _) = name
 
     -- NOTE: SAFETY: We filtered the decls
-    getFunString :: QueryEntry -> String
-    getFunString (QueryEntry _ (FnDecl f)) = makeFunString f
-    getFunString _ = error "Impossible"
+    getSearchString :: QueryEntry -> String
+    getSearchString (QueryEntry _ (FnDecl f)) = mkFunString f
+    getSearchString (QueryEntry _ (TypeDecl _ _ (TName _tpath (TCon name _)) _)) = name
+    getSearchString (QueryEntry _ (ConstDecl name _)) = name
+    getSearchString (QueryEntry _ (EnumDecl _ (TName _ (TCon name _)) _)) = name
+    getSearchString _ = error "Impossible"
 query _ = do
   logAttention_ "Type queries are not yet implemented"
   pure $ QueryResult []
