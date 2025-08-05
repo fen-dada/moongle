@@ -6,7 +6,6 @@ module Moongle.Registry where
 
 import Control.Lens
 import Control.Monad
-import Data.ByteString.Lazy qualified as BL
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Vector qualified as V
@@ -22,7 +21,6 @@ import Effectful.Wreq
 import Moongle.Config
 import Moongle.General.Utils
 import Moongle.Registry.Types
-import Network.HTTP.Client (HttpException)
 import System.FilePath
 import Prelude hiding (writeFile)
 
