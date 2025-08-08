@@ -71,6 +71,7 @@ library
         Moongle.Server.Types
         Moongle.Server.Handler
         Moongle.Env
+        Moongle.TypeSearch
 
     -- Modules included in this library but not exported.
     other-modules:
