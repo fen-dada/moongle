@@ -212,7 +212,7 @@ mkPrefix lex = quote lex <> ":*"
 Signature:
 
 ```
-read_json<T>(s: String) -> Result<T, Error> raises IO.Error
+fn[T] read_json(s: String) -> Result[T, Error] raises IO.Error
 ```
 
 Emitted lexemes (lowercased, illustrative):
