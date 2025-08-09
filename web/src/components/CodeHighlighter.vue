@@ -7,8 +7,14 @@
 </template>
 
 <script>
-import { getMoonbit } from './ts-runtime'   // 按你的路径改
+// 单例初始化（内部只 init 一次，并缓存 language）
+import { getMoonbit } from './ts-runtime'
 
+// 把 MoonBit 的高亮查询当纯文本引入（若你暂时没有官方文件，可先用你自己的简化版）
+// 路径按你的项目存放位置调整，例如：src/assets/moonbit-highlights.scm
+import highlightsSource from '@/assets/moonbit-highlight.scm?raw'
+
+// 如果需要在极端情况下退化到启发式，可保留极少量工具（这里不再用启发式给颜色）
 export default {
   name: 'Highlight',
   props: {
@@ -16,9 +22,10 @@ export default {
   },
   data() {
     return {
-      highlightedCode: '',
       parser: null,
       language: null,
+      query: null,              // 编译后的 Query
+      highlightedCode: '',
       loading: true,
       error: null
     }
@@ -27,18 +34,21 @@ export default {
     await this.initializeParser()
   },
   watch: {
-    code() {
-      this.highlightCode()
-    }
+    code() { this.highlightCode() }
   },
   methods: {
     async initializeParser () {
       this.loading = true
       this.error = null
       try {
-        const { parser, language } = await getMoonbit()   // ✅ 同时拿到 language
+        const { parser, language } = await getMoonbit()
         this.parser = parser
         this.language = language
+
+        // v0.25.x 通常有 language.query；否则退回 Parser.Query
+        this.query = this.language.query
+          ? this.language.query(highlightsSource)
+          : new (window.Parser?.Query ?? Query)(this.language, highlightsSource)
 
         this.loading = false
         this.highlightCode()
@@ -49,174 +59,102 @@ export default {
       }
     },
 
-    dumpLeafTypes(node, set = new Set()) {
-      if (!node) return set
-      if (!node.children || node.children.length === 0) {
-        set.add(node.type)
-        return set
-      }
-      for (const ch of node.children) this.dumpLeafTypes(ch, set)
-      return set
-    },
-
     highlightCode() {
       if (this.loading || !this.parser || !this.language) return
       const src = this.code ?? ''
       if (!src) { this.highlightedCode = ''; return }
 
-      const tree = this.parser.parse(src)
-      const leaves = this.flattenLeaves(tree.rootNode, src) // ← 新方法
-
       let html = ''
-      let cursor = 0
-      for (let i = 0; i < leaves.length; i++) {
-        const cur = leaves[i]
-        // 补上叶子前的原文（空白/逗号等）
-        if (cursor < cur.start) html += this.escapeHtml(src.slice(cursor, cur.start))
+      try {
+        const tree = this.parser.parse(src)
 
-        // ---- 识别 "# deprecated"（跨层也能识别）----
-        const next = leaves[i + 1]
-        if (
-          cur.text === '#' &&
-          next &&
-          next.type === 'lowercase_identifier' &&
-          /^deprecated$/i.test(next.text) &&
-          /^\s*$/.test(src.slice(cur.end, next.start)) // 中间允许空格
-        ) {
-          html += `<span class="token deprecated-anno">${this.escapeHtml(src.slice(cur.start, next.end))}</span>`
-          cursor = next.end
-          i++ // 跳过 next
-          continue
-        }
-        // -------------------------------------------
-
-        // 函数名启发式（lowercase_identifier 后跟 '(' 或前面是 '::'）
-        let isFunctionIdent = false
-        if (cur.type === 'lowercase_identifier') {
-          const after = src[cur.end] || ''
-          const before2 = src.slice(Math.max(0, cur.start - 2), cur.start)
-          if (after === '(' || before2 === '::') isFunctionIdent = true
+        if (!this.query) {
+          // 没有查询规则就原文显示（避免空白）
+          this.highlightedCode = this.escapeHtml(src)
+          return
         }
 
-        const cls = this.getHighlightClass(cur.type, cur.text, { isFunctionIdent })
-        html += `<span class="token ${cls}">${this.escapeHtml(cur.text)}</span>`
-        cursor = cur.end
-      }
-      if (cursor < src.length) html += this.escapeHtml(src.slice(cursor))
-      this.highlightedCode = html || this.escapeHtml(src)
-    },
+        // 1) 执行查询：得到 [{ node, name }, ...]
+        const caps = this.query.captures(tree.rootNode)
 
-    flattenLeaves(node, source, out = []) {
-      if (!node) return out
-      if (!node.children || node.children.length === 0) {
-        out.push({
+        // 2) 映射为可渲染片段（start/end/cls）
+        const spans = caps.map(({ node, name }) => ({
           start: node.startIndex,
-          end: node.endIndex,
-          type: node.type,
-          text: source.slice(node.startIndex, node.endIndex)
-        })
-        return out
+          end:   node.endIndex,
+          cls:   this.classFromCapture(name)
+        })).filter(s => s.end > s.start)
+
+        // 3) 处理重叠：按优先级→长度→起点排序，贪心选取
+        const ranked = spans.map(s => ({
+          ...s,
+          p: this.priorityOf(s.cls),
+          len: s.end - s.start
+        })).sort((a,b) => b.p - a.p || b.len - a.len || a.start - b.start)
+
+        const chosen = []
+        for (const s of ranked) {
+          const overlap = chosen.some(t => !(s.end <= t.start || s.start >= t.end))
+          if (!overlap) chosen.push({ start: s.start, end: s.end, cls: s.cls })
+        }
+        chosen.sort((a,b) => a.start - b.start)
+
+        // 4) 按片段拼 HTML（未命中的片段原样转义）
+        let i = 0
+        for (const s of chosen) {
+          if (i < s.start) html += this.escapeHtml(src.slice(i, s.start))
+          html += `<span class="token ${s.cls}">${this.escapeHtml(src.slice(s.start, s.end))}</span>`
+          i = s.end
+        }
+        if (i < src.length) html += this.escapeHtml(src.slice(i))
+
+        // 兜底：空则回原文
+        this.highlightedCode = html && html.trim() ? html : this.escapeHtml(src)
+      } catch (err) {
+        console.error('代码高亮失败:', err)
+        this.highlightedCode = this.escapeHtml(src)
       }
-      for (const ch of node.children) this.flattenLeaves(ch, source, out)
-      return out.sort((a,b) => a.start - b.start) // 保序
     },
 
-
-    generateHTML(node, source) {
-      if (!node || node.endIndex <= node.startIndex) return this.escapeHtml(source)
-
-      // 叶子：常规路径
-      if (!node.children || node.children.length === 0) {
-        const text = source.slice(node.startIndex, node.endIndex)
-
-        // 仍保留函数名启发式
-        let isFunctionIdent = false
-        if (node.type === 'lowercase_identifier') {
-          const nextCh = source[node.endIndex] || ''
-          const prev2  = source.slice(Math.max(0, node.startIndex - 2), node.startIndex)
-          if (nextCh === '(' || prev2 === '::') isFunctionIdent = true
-        }
-
-        const className = this.getHighlightClass(node.type, text, { isFunctionIdent })
-        return `<span class="token ${className}">${this.escapeHtml(text)}</span>`
-      }
-
-      // 非叶子：遍历 children，加入对 "# deprecated" 的合并处理
-      let html = ''
-      let i = node.startIndex
-      const kids = node.children
-
-      for (let k = 0; k < kids.length; k++) {
-        const child = kids[k]
-
-        // 先补充 child 之前的原文（空白/逗号等）
-        if (i < child.startIndex) {
-          html += this.escapeHtml(source.slice(i, child.startIndex))
-          i = child.startIndex
-        }
-
-        // ---- 关键：识别 "# deprecated" 模式 ----
-        if (
-          child.type === '#' &&
-          k + 1 < kids.length &&
-          kids[k + 1].type === 'lowercase_identifier'
-        ) {
-          const next = kids[k + 1]
-          const between = source.slice(child.endIndex, next.startIndex) // 可能是空串或空格
-          const nextText = source.slice(next.startIndex, next.endIndex)
-
-          // 只要下一个单词是 "deprecated"（大小写忽略），就把 "# + (空格) + deprecated" 合并高亮
-          if (/^deprecated$/i.test(nextText)) {
-            const mergedText = source.slice(child.startIndex, next.endIndex) // '#' + 可能的空格 + 'deprecated'
-            html += `<span class="token deprecated-anno">${this.escapeHtml(mergedText)}</span>`
-            i = next.endIndex
-            k++ // 跳过 next
-            continue
-          }
-        }
-        // ---- 合并处理结束 ----
-
-        // 常规递归
-        html += this.generateHTML(child, source)
-        i = child.endIndex
-      }
-
-      if (i < node.endIndex) {
-        html += this.escapeHtml(source.slice(i, node.endIndex))
-      }
-      return html
-    },
-
-
-    getHighlightClass(nodeType, text = '', ctx = {}) {
-      if (nodeType === 'ERROR') return 'error'
-
-      const TEXT_KW = new Set(['fn','let','var','if','else','while','for','match',
-        'struct','enum','trait','impl','pub','priv','mut','ref','return','break',
-        'continue','raise'])
-      if (TEXT_KW.has(text)) return 'keyword'
-
-      if (nodeType === 'uppercase_identifier' || nodeType === 'type_identifier') return 'type'
-      if (ctx.isFunctionIdent) return 'function'
-      if (nodeType === 'lowercase_identifier' || nodeType === 'identifier') return 'identifier'
-
-      if (nodeType === 'string_literal') return 'string'
-      if (nodeType === 'number_literal' || nodeType === 'float_literal' || nodeType === 'int_literal') return 'number'
-      if (nodeType === 'boolean_literal') return 'boolean'
-
-      const OPS = new Set(['->','=>','==','!=','<=','>=','+','-','*','/','%','=','&&','||','!','&','|','^','<<','>>','::'])
-      if (OPS.has(text) || nodeType?.endsWith?.('_operator')) return 'operator'
-      const PUNCTS = new Set(['(',')','[',']','{','}','.',',',';',':','<','>'])
-      if (PUNCTS.has(text) || nodeType === 'punctuation') return 'punctuation'
-
-      if (nodeType === 'line_comment' || nodeType === 'block_comment') return 'comment'
+    // capture 名 → CSS 类名
+    classFromCapture(name) {
+      if (!name) return 'default'
+      // Tree-sitter capture 名可能是 "function.builtin" 这种层级名，这里用 includes 容忍不同后缀
+      if (name.includes('keyword'))     return 'keyword'
+      if (name.includes('function'))    return 'function'
+      if (name.includes('type'))        return 'type'
+      if (name.includes('string'))      return 'string'
+      if (name.includes('number'))      return 'number'
+      if (name.includes('boolean'))     return 'boolean'
+      if (name.includes('comment'))     return 'comment'
+      if (name.includes('operator'))    return 'operator'
+      if (name.includes('punctuation')) return 'punctuation'
+      if (name.includes('attribute'))   return 'deprecated-anno' // 用 @attribute 呈现 #deprecated 等标注
+      if (name.includes('constant'))    return 'constant'
+      if (name.includes('variable'))    return 'identifier'
       return 'default'
     },
 
+    // 冲突时谁盖谁（可按主题调整）
+    priorityOf(cls) {
+      const table = {
+        error: 100,
+        keyword: 90,
+        function: 80,
+        type: 70,
+        string: 60, number: 60, boolean: 60, constant: 60,
+        'deprecated-anno': 55,
+        comment: 50,
+        operator: 40,
+        identifier: 20,
+        punctuation: 10,
+        default: 0
+      }
+      return table[cls] ?? 0
+    },
 
     escapeHtml(text) {
-      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
-      return (text || '').replace(/[&<>"']/g, (m) => map[m])
+      const map = { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }
+      return (text || '').replace(/[&<>"']/g, m => map[m])
     }
   },
 
@@ -243,23 +181,19 @@ export default {
   font-size: 14px;
 }
 
-/* 让 v-html 注入的 token 在 scoped 下也能命中样式 */
-:deep(.token.keyword) { color: #d73a49; font-weight: bold; }
-:deep(.token.string)  { color: #032f62; }
-:deep(.token.number),
-:deep(.token.boolean) { color: #005cc5; }
-:deep(.token.comment) { color: #6a737d; font-style: italic; }
-:deep(.token.function){ color: #6f42c1; font-weight: bold; }
-:deep(.token.type)    { color: #005cc5; font-weight: bold; }
-:deep(.token.identifier) { color: #24292e; }
-:deep(.token.operator)   { color: #d73a49; }
-:deep(.token.punctuation),
-:deep(.token.default)    { color: #24292e; }
-:deep(.token.function){ color:#6f42c1; font-weight:bold; }
+/* v-html 动态注入节点，用 :deep 命中 */
+:deep(.token.keyword){ color:#d73a49; font-weight:600; }
+:deep(.token.function){ color:#6f42c1; font-weight:600; }
+:deep(.token.type){ color:#005cc5; font-weight:600; }
+:deep(.token.string){ color:#032f62; }
+:deep(.token.number), :deep(.token.boolean){ color:#005cc5; }
+:deep(.token.comment){ color:#6a737d; font-style:italic; }
+:deep(.token.operator){ color:#d73a49; }
+:deep(.token.constant){ color:#b31d28; }
+:deep(.token.identifier){ color:#24292e; }
+:deep(.token.punctuation), :deep(.token.default){ color:#24292e; }
 :deep(.token.deprecated-anno){
-  color:#b08800; font-style:italic;
-  text-decoration: underline dotted #b08800;
+  color:#b08800; font-style:italic; text-decoration: underline dotted #b08800;
 }
-
 </style>
 
