@@ -1,141 +1,298 @@
-**Moongle Design Document (v0.1)**
-*— A MoonBit API & type‑signature search engine inspired by Hoogle*
+# Moongle TypeSearch GIN Index — Design Spec
 
 ---
 
-### 1 Vision & Goals
+## 0. Goals
 
-* **Type‑centric search** – developers can locate MoonBit APIs by approximate type signatures, identifiers, or free‑text keywords, just as they do with Hoogle.
-* **MoonBit‑aware** – handles `async`, `raise …`, named/optional parameters, `DynTrait`, generics with trait bounds, etc.
-* **Fast feedback** – ≤ 0.3 s for local datasets (≤ 10 k functions), ≤ 1 s for cloud‑scale queries.
-* **Open interfaces** – uniform JSON schema served by CLI and Web API.
+* Fast, composable **type-based search** over MoonBit function signatures.
+* Support **partial type-path** queries (e.g., `Result.*`, `Array.JSON.*`).
+* Express **generator/processor** queries ("produces T" vs. "consumes T").
+* Treat **effects/raises** as first-class filterable items.
+* Be **α-equivalence** & **argument-order** robust for polymorphic types.
+* Rank by relevance with simple, explainable signals.
 
----
-
-### 2 Core Ideas
-
-| Term              | Purpose                                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Type Expr**     | A full MoonBit type expression (including effects and generic constraints).                                    |
-| **Structure Key** | A canonical “skeleton + term list” used for rapid structural matching.                                         |
-| **Cost Vector**   | A multi‑dimensional score (≈ 15 features) measuring distance between a query and a candidate; lower is better. |
+Out of scope (v1): learned ranking, fuzzy name matching, result pagination UX.
 
 ---
 
-### 3 Query Language (EBNF)
+## 1. Storage Model
 
-```ebnf
-Query          ::= TypeSig | Ident | Keywords
-TypeSig        ::= TyParams? Params '->' RetType Raise? Async?
-TyParams       ::= '[' TyParam (',' TyParam)* ']'
-TyParam        ::= Ident (':' ConstraintList)?
-Params         ::= '(' Param (',' Param)* ')'
-Param          ::= Ident? ':'? TypeExpr Default? Variadic?
-Raise          ::= 'raise' ExceptionList
-Async          ::= 'async'
+**Table**: `defs` (one row per exported definition/function)
+
+```sql
+CREATE TABLE defs (
+  id              BIGSERIAL PRIMARY KEY,
+  module_path     TEXT NOT NULL,          -- e.g. "pkg.mod.Sub"
+  def_name        TEXT NOT NULL,          -- e.g. "map"
+  arity           INT  NOT NULL,          -- number of value parameters
+  signature_jsonb JSONB NOT NULL,         -- normalized AST of type signature
+  type_lex        TSVECTOR NOT NULL,      -- constructed lexeme bag (see §2)
+  index_version   INT NOT NULL DEFAULT 1  -- bump when lexeme schema changes
+);
+CREATE INDEX defs_type_lex_gin ON defs USING GIN (type_lex);
 ```
 
-*Examples*
-
-* `(K, V) -> Int` – minimal function
-* `[T : Compare] (Array<T>, Int) -> Option<T>` - function with generic parameters
-* `async (content? : Json, path~ : JsonPath = ..) -> Unit raise JsonDecodeError`
+> We deliberately keep `type_lex` as a prebuilt `tsvector` for speed and control.
 
 ---
 
-### 4 Data Ingestion & Indexing
+## 2. Lexeme Schema
 
-1. **Parsing** – use `Language.Moonbit.Mbti.Parser` to read every *.mbti* file and emit `(ModulePath, FnSig, Doc)` tuples.
-2. **Normalization**
+Each **lexeme** is an atom stored in `tsvector` with format:
 
-   * **α‑renaming** – canonicalise type variables (`a`, `b`, `c`, …).
-   * **Alias expansion** – inline `type`/`using` aliases for indexing; compensate lazily at query time.
-   * **Effect lifting** – treat `raise` sets and `async` flags as extra structural dimensions.
-3. **Dual‑index strategy**
-
-   * **Trie / FST** for identifiers and doc tokens (fast textual matching).
-   * **Structure‑Key → Posting List** for structural matches; \~25 distinct key shapes keep the posting lists sparse.
-
----
-
-### 5 Search Pipeline
-
-```mermaid
-flowchart LR
-    Q[Query] --> P1[Parse & Normalise]
-    P1 --> F[Filter Stage]
-    F -->|text| C1[(Candidates₁)]
-    F -->|structure| C2[(Candidates₂)]
-    C1 & C2 --> S[Cost Matching]
-    S --> R[Top‑k Ranking]
-    R --> O[JSON Result]
+```
+<kind>,<occ>,<payload>
 ```
 
-1. **Text filter** – discard obviously unrelated items via the trie (O(log n)).
-2. **Structural filter** – compare Structure Keys, allowing a single box/unbox (e.g. `T` ↔ `Option<T>`) or collection alias (`[]` ↔ `List`).
-3. **Argument‑level search** – solve each parameter locally, then combine into full signatures while applying composite costs (missing arg, unsatisfied bound, etc.).
-4. **Dijkstra / A\*** – run on the local type graph; first answer is near‑instant, full top‑k within 0.5 s for 10 k sigs.
+* **`<kind>`**: short category code
+
+  * `mn` — mention by **name/path** (types, constructors, modules)
+  * `mh` — mention by **hash/id** (optional if MoonBit has stable type IDs)
+  * `v`  — **type variable** occurrence pattern
+  * `me` — **effect/raise** mention
+  * `ar` — **arity** (function parameter count) — sorting/filters
+* **`<occ>`**: occurrence slot
+
+  * integer `1..n`: appears among value **parameters** (aggregate count)
+  * `r`: appears in the **return** position
+  * `e`: effect **raised** by the function
+* **`<payload>`**:
+
+  * For `mn`/`me`/`mh`: **reversed type path** with trailing dot, e.g. `Result.` or `Option.Result.` or `Array.JSON.data.`
+  * For `v`: a **stable type-variable id** (decimal digits), e.g. `1`, `2` (see §3)
+  * For `ar`: integer arity, e.g. `2` (no dot)
+
+**Examples**
+
+```
+mn,1,List.
+mn,1,Array.JSON.
+mn,r,Result.
+me,e,IO.Error.
+v,2,2       -- variable #2 appears twice in params
+v,r,2       -- variable #2 appears in return
+ar,3        -- 3 parameters
+```
+
+> We always **quote and escape** lexemes when building the `tsvector` literal to keep punctuation like `.` or `#` intact.
 
 ---
 
-### 6 Cost Model (initial weights)
+## 3. Normalization Rules (index-time)
 
-| Feature      | Meaning                              | Cost |
-| ------------ | ------------------------------------ | ---- |
-| `badArg`     | parameter missing/extraneous         |  +5  |
-| `badInst`    | unmet trait constraint               |  +4  |
-| `alias`      | hit via type alias                   |  +3  |
-| `box/unbox`  | `T` ↔ `Option<T>` or collection wrap |  +2  |
-| `dupVar`     | duplicated type variable             |  +2  |
-| `restrict`   | losing a constraint                  |  +1  |
-| `effectDiff` | differing `raise` set                |  +6  |
-| `asyncDiff`  | `async` mismatch                     |  +3  |
+1. **Reverse type paths**, append trailing `.`
 
-Ranks will be refined automatically (learning‑to‑rank over click logs).
+   * `data.JSON.Array` → `Array.JSON.data.`
+   * Rationale: enables prefix (`:*`) queries for **partial path** at any depth.
+2. **Case**: store **lowercase** payloads; normalize user queries to lowercase.
+3. **Type variables** → numbered ids ensuring α-equivalence & arg-order robustness:
 
----
-
-### 7 System Architecture
-
-* **Core Engine (Haskell)** – pure kernel using `vector` & `unordered‑containers`; exposes `search :: Query -> IO [Result]`.
-* **HTTP Service (Rust)** – wraps the kernel via FFI, adds Moka LRU cache and hot‑swapable indexes.
-* **Front‑ends**
-
-  * CLI: `moongle "(K, V) -> Int"`.
-  * VS Code / Neovim extensions (hover‑to‑search).
-  * Web UI : a minimalist search box where users enter a query and, in the results, each item links straight to the corresponding MoonBit API documentation
+   * Compute multiplicities of each type variable.
+   * Sort vars by **descending multiplicity**, then **left-to-right** tie-break.
+   * Assign ids `1,2,...` in that order; emit `v,<count>,<id>` and `v,r,<id>`.
+4. **Arity**: count value parameters only; emit single `ar,<k>` lexeme.
+5. **Effects/Raises**: for each raised effect path, emit `me,e,<revpath>.`.
+6. **Traits/Constraints (optional v1.1)**: emit `tc,1,<revpath>.` if needed.
 
 ---
 
-### 8 Performance & Quality Targets
+## 4. Indexing Pipeline
 
-| Metric          | Target                          |
-| --------------- | ------------------------------- |
-| Index build     | 1 M sigs ≤ 60 s, 2 GB RAM       |
-| Query p50       | 50 ms (local) / 120 ms (remote) |
-| Query p95       | 120 ms / 300 ms                 |
-| Top‑1 precision | ≥ 85 % (beta)                   |
-| Top‑5 coverage  | ≥ 97 %                          |
+1. Parse MoonBit signature → normalized AST (already in `signature_jsonb`).
+2. Walk AST to collect:
 
----
+   * Mentioned **concrete types/constructors/paths** with occurrence slots (`1` for params aggregate; `r` for return).
+   * **Type variables** with counts and positions (params vs. return).
+   * **Effects/raises**.
+   * **Arity**.
+3. Build lexeme strings; **quote/escape** each; join into a `tsvector` literal.
+4. `UPDATE defs SET type_lex = '<literal>'::tsvector WHERE id = ...;`
 
-### 9 Milestones
-- [ ] **M1**: `parser` + `α‑normalisation` + `trie index`
-- [ ] **M2**: `Structure Key` + `cost vector` + `local search`
-- [ ] **M3**: `ranking‑file learner` + `CLI release`
-- [ ] **M4**: `Editor plugin` + `web UI`
-<!-- - [ ] **M5**: `community beta` & `weight tuning` -->
----
-
-### 10 Future Work
-
-* **Incremental indexing** – live updates via git hooks or package‑repo events.
-* **Language bindings** – start with Haskell ↔ Rust FFI; expose C/C++ later.
-* **Code example search** – combine AST snippets with doc‑string embeddings.
-* **ML‑ranked results** – LambdaMART fine‑tuning on click data.
-* **Sharding** – horizontal scale beyond 10 M signatures.
+> Rebuild strategy: bump `index_version`, backfill column, swap.
 
 ---
 
-*Moongle adapts key ideas from Neil Mitchell’s “Fast Type Searching” (2008), generalising alpha‑normalisation, structural posting lists, and cost‑vector ranking to MoonBit’s richer surface syntax and effect system.*
+## 5. Query Language → SQL (`tsquery`)
+
+We always use `to_tsquery` with quoted lexemes and `:*` for prefix.
+
+### 5.1 Partial path mention (any slot)
+
+```sql
+-- any mention of List.*
+WHERE type_lex @@ to_tsquery('''mn,1,list.*'':*')
+   OR type_lex @@ to_tsquery('''mn,r,list.*'':*')
+```
+
+### 5.2 Generator: **returns T**, but **does not consume T**
+
+```sql
+WHERE type_lex @@ to_tsquery('''mn,r,result.*'':*')
+  AND NOT (type_lex @@ to_tsquery('''mn,1,result.*'':*'))
+```
+
+### 5.3 Processor: **consumes T**, but **does not return T**
+
+```sql
+WHERE type_lex @@ to_tsquery('''mn,1,text.*'':*')
+  AND NOT (type_lex @@ to_tsquery('''mn,r,text.*'':*'))
+```
+
+### 5.4 Effect handler / effectful functions
+
+```sql
+-- functions that raise IO.Error.*
+WHERE type_lex @@ to_tsquery('''me,e,io.error.*'':*')
+```
+
+### 5.5 Variable-shape queries (α-robust)
+
+* Example: pattern `a -> b -> b` ("returns the second arg’s type")
+
+```sql
+WHERE type_lex @@ to_tsquery('''v,1,1'' & ''v,2,2'' & ''v,r,2''')
+```
+
+* Example: pattern `a -> a` (id function)
+
+```sql
+WHERE type_lex @@ to_tsquery('''v,1,1'' & ''v,r,1''')
+```
+
+### 5.6 Arity filter
+
+```sql
+-- exactly 2 params
+AND type_lex @@ to_tsquery('''ar,2''')
+```
+
+> Compose with `&` (AND), `|` (OR), `!` (NOT). Always lowercase user text and reverse paths before building `tsquery`.
+
+---
+
+## 6. Ranking (v1)
+
+Base: `ts_rank_cd(type_lex, <tsquery>, weights)` where `weights = '{A,B,C,D}'`.
+
+* Assign heavier weights to **return/effect** lexemes by duplicating them into higher-weighted sub-`tsvector`s if needed; a simpler v1: keep one column and apply **secondary ordering**:
+
+  1. `mn,r,*` hits count desc
+  2. `me,e,*` hits count desc
+  3. `mn,1,*` hits count desc
+  4. `depth` proximity (longer exact path preferred)
+  5. `arity` closeness to requested
+
+Add lightweight tie-breakers: popularity (import count), module quality flags.
+
+---
+
+## 7. Escaping Rules
+
+* Always quote each lexeme when constructing `tsvector` and `tsquery`.
+* Allowed punctuation in payload (`.` `#` etc.) is preserved by quoting.
+* Lowercase payloads; ensure the query builder lowercases user input.
+
+Helpers (pseudo-code):
+
+```haskell
+mkLexeme :: Text -> Text -> Text -> Text
+mkLexeme kind occ payload = quote (kind <> "," <> occ <> "," <> payload)
+
+revPath :: [Text] -> Text
+revPath segs = toLower (Text.intercalate "." (reverse segs)) <> "."
+
+mkPrefix :: Text -> Text
+mkPrefix lex = quote lex <> ":*"
+```
+
+---
+
+## 8. Examples
+
+Signature:
+
+```
+fn[T] read_json(s: String) -> Result[T, Error] raises IO.Error
+```
+
+Emitted lexemes (lowercased, illustrative):
+
+```
+mn,1,string.
+mn,1,error.
+mn,1,result.
+mn,r,result.
+me,e,io.error.
+-- type vars
+v,1,1         -- T appears once in params
+v,r,1         -- T appears in return
+-- arity
+ar,1
+```
+
+Queries possible:
+
+* **Generator of Result**: `mn,r,result.* & ! mn,1,result.*`
+* **Effect IO.Error**: `me,e,io.error.*`
+* **Returns its param** (`a -> a`): `v,1,1 & v,r,1`
+
+---
+
+## 9. Implementation Plan
+
+1. **Indexer** (Haskell)
+
+   * Parse MoonBit signatures → `signature_jsonb` (already available in project).
+   * Walk AST to collect mentions, vars, effects, arity.
+   * Normalize → set of lexemes (Text).
+   * Build `tsvector` literal and `UPDATE defs SET type_lex = ...` in batches.
+2. **Search API**
+
+   * Request → parsed filters (paths/effects/patterns/arity).
+   * Normalize inputs (lowercase, reverse paths).
+   * Compose `tsquery` string(s).
+   * `SELECT ... FROM defs WHERE type_lex @@ to_tsquery($1) ORDER BY rank ... LIMIT/OFFSET`.
+3. **Tests**
+
+   * Golden tests: signature → lexeme set.
+   * Property tests: α-equivalent signatures produce identical `v` lexemes.
+   * Query fixtures: known queries return expected ids.
+
+---
+
+## 10. Edge Cases & Notes
+
+* **Aliases**: v1 create only canonical mentions; v1.1 may add alias mentions (e.g., `al,*,path.`) and cost them during ranking.
+* **Nested generics / tuples / unions**: traverse fully; emit all path mentions.
+* **Operators / infix defs**: use the normalized def name; unrelated to type index.
+* **Names containing dots**: treat `.` as path delimiter only in type paths; user space names that contain `.` should be escaped at AST level.
+* **Multiple effects**: emit multiple `me,e,*` lexemes.
+* **No-effect functions**: emit none for `me`.
+* **Versioning**: bump `index_version` on schema/rule changes.
+
+---
+
+## 11. Future Extensions
+
+* `tc` for trait/constraint mentions (filter: requires `Eq.*`, etc.).
+* `mh` stable type IDs to survive renames.
+* Learned ranking features; click logs.
+* Per-package shards and parallel GIN build.
+* Materialized views for top queries.
+
+---
+
+## 12. Quick Reference (Cheat Sheet)
+
+* **Lexeme**: `<kind>,<occ>,<payload>`
+* **Kinds**: `mn` | `mh` | `v` | `me` | `ar`
+* **Occ**: `1..n` (params) | `r` (return) | `e` (effect)
+* **Payload**: reversed path with trailing `.`; for `v` = var id; for `ar` = int
+* **Generator**: `mn,r,X.*  &  ! mn,1,X.*`
+* **Processor**: `mn,1,X.*  &  ! mn,r,X.*`
+* **Effect**: `me,e,E.*`
+* **Var shape**: `a->b->b` → `v,1,1  &  v,2,2  &  v,r,2`
+* **Arity**: `ar,k`
+
+---
 

@@ -4,4 +4,8 @@ packages:
   ./vendor/servant-effectful
 
 allow-newer: 
-  wreq-effectful:base
+  wreq-effectful:base,
+  postgresql-simple:base,
+  postgresql-simple:template-haskell
+
+
