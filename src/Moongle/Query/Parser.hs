@@ -15,6 +15,12 @@ import Text.Parsec.Text.Lazy (Parser)
 -- >>> parse pTyQuery "" "async [K : Compare, V](K, V) -> Int raise E"
 -- Right (TyQuery (TypeQuery {queryTyParams = [(TCon "K" [],[CTrait (TTrait Nothing "Compare")]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffAsync,EffException (Araise (TName Nothing (TCon "E" [])))]}))
 
+-- >>> parse pTyQuery "" "[K, V](K, V) -> Int"
+-- Right (TyQuery (TypeQuery {queryTyParams = [(TCon "K" [],[]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffException NoAraise]}))
+
+-- >>> parse pTyQuery "" "(Int) -> String"
+-- Right (TyQuery (TypeQuery {queryTyParams = [], queryParams = [AnonParam False (TName Nothing (TCon "Int" []))], queryReturnTy = TName Nothing (TCon "String" []), queryEff = [EffException NoAraise]}))
+
 pTyQuery :: Parser Query
 pTyQuery = do
   isAsync <- option False (reserved RWAsync $> True)
@@ -27,7 +33,7 @@ pTyQuery = do
   return $ TyQuery (TypeQuery typs params retTy effects)
 
 -- >>> parse pNmQuery "" "@btree/btree.insert"
--- Right (NmQuery (Just (TPath ["btree"] "btree")) (TCon "insert" []))
+-- Right (NmQuery (NameQuery {queryModulePath = Just (TPath ["btree"] "btree"), queryName = TCon "insert" []}))
 
 pNmQuery :: Parser Query
 pNmQuery = do
