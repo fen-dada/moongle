@@ -62,3 +62,7 @@ npm run test:e2e -- --debug
 ```sh
 npm run lint
 ```
+
+## TODO
+- [x]自动构建wasm文件
+- []web-tree-sitter版本更新时自动重编译

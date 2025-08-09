@@ -4,3 +4,9 @@
 [submodule "vendor/servant-effectful"]
 	path = vendor/servant-effectful
 	url = https://github.com/Kleidukos/servant-effectful.git
+[submodule "vendor/tree-sitter-moonbit"]
+	path = vendor/tree-sitter-moonbit
+	url = https://github.com/moonbitlang/tree-sitter-moonbit
+[submodule "web/vendor/tree-sitter-moonbit"]
+	path = web/vendor/tree-sitter-moonbit
+	url = https://github.com/moonbitlang/tree-sitter-moonbit

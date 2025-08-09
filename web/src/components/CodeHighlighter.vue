@@ -8,11 +8,12 @@
 
 <script>
 // 单例初始化（内部只 init 一次，并缓存 language）
-import { getMoonbit } from './ts-runtime'
+import { getMoonbitWithQuery } from './ts-runtime'
 
 // 把 MoonBit 的高亮查询当纯文本引入（若你暂时没有官方文件，可先用你自己的简化版）
 // 路径按你的项目存放位置调整，例如：src/assets/moonbit-highlights.scm
 import highlightsSource from '@/assets/moonbit-highlight.scm?raw'
+//import highlightsSource from '../assets/moonbit-highlight.scm?raw'
 
 // 如果需要在极端情况下退化到启发式，可保留极少量工具（这里不再用启发式给颜色）
 export default {
@@ -41,14 +42,11 @@ export default {
       this.loading = true
       this.error = null
       try {
-        const { parser, language } = await getMoonbit()
+        const { parser, language, query } = await getMoonbitWithQuery(highlightsSource)
         this.parser = parser
         this.language = language
+        this.query = query
 
-        // v0.25.x 通常有 language.query；否则退回 Parser.Query
-        this.query = this.language.query
-          ? this.language.query(highlightsSource)
-          : new (window.Parser?.Query ?? Query)(this.language, highlightsSource)
 
         this.loading = false
         this.highlightCode()
@@ -64,27 +62,28 @@ export default {
       const src = this.code ?? ''
       if (!src) { this.highlightedCode = ''; return }
 
-      let html = ''
       try {
+        const t0 = performance.now()
         const tree = this.parser.parse(src)
 
         if (!this.query) {
-          // 没有查询规则就原文显示（避免空白）
           this.highlightedCode = this.escapeHtml(src)
           return
         }
 
-        // 1) 执行查询：得到 [{ node, name }, ...]
+        // 1) 执行查询
+        const t1 = performance.now()
         const caps = this.query.captures(tree.rootNode)
+        const t2 = performance.now()
 
-        // 2) 映射为可渲染片段（start/end/cls）
+        // 2) 映射为片段
         const spans = caps.map(({ node, name }) => ({
           start: node.startIndex,
           end:   node.endIndex,
           cls:   this.classFromCapture(name)
         })).filter(s => s.end > s.start)
 
-        // 3) 处理重叠：按优先级→长度→起点排序，贪心选取
+        // 3) 处理重叠：优先级→长度→起点；贪心去重
         const ranked = spans.map(s => ({
           ...s,
           p: this.priorityOf(s.cls),
@@ -98,17 +97,38 @@ export default {
         }
         chosen.sort((a,b) => a.start - b.start)
 
-        // 4) 按片段拼 HTML（未命中的片段原样转义）
-        let i = 0
+        // 3.5) 合并相邻同类片段（减少 DOM 节点）
+        const tMergeStart = performance.now()
+        const merged = []
         for (const s of chosen) {
+          const last = merged[merged.length - 1]
+          if (last && last.cls === s.cls && last.end === s.start) {
+            last.end = s.end
+          } else {
+            merged.push({ ...s })
+          }
+        }
+        const tMergeEnd = performance.now()
+
+        // 4) 按片段拼 HTML
+        let html = '', i = 0
+        for (const s of merged) {
           if (i < s.start) html += this.escapeHtml(src.slice(i, s.start))
           html += `<span class="token ${s.cls}">${this.escapeHtml(src.slice(s.start, s.end))}</span>`
           i = s.end
         }
         if (i < src.length) html += this.escapeHtml(src.slice(i))
-
-        // 兜底：空则回原文
         this.highlightedCode = html && html.trim() ? html : this.escapeHtml(src)
+
+        const t3 = performance.now()
+        /*
+        console.log(
+          `parse: ${(t1-t0).toFixed(1)}ms, ` +
+          `query: ${(t2-t1).toFixed(1)}ms, ` +
+          `merge: ${(tMergeEnd-tMergeStart).toFixed(1)}ms, ` +
+          `render: ${(t3-tMergeEnd).toFixed(1)}ms`
+        )
+        */
       } catch (err) {
         console.error('代码高亮失败:', err)
         this.highlightedCode = this.escapeHtml(src)

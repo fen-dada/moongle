@@ -1,26 +1,24 @@
-// 单例初始化，返回 { parser, language }
-import { Parser, Language } from 'web-tree-sitter'
+import { Parser, Language, Query } from 'web-tree-sitter'
 
 const RUNTIME_WASM_URL = '/tree-sitter.wasm'
 const MOONBIT_WASM_URL = '/tree-sitter-moonbit.wasm'
+let initP: Promise<void> | null = null
+let langP: Promise<any> | null = null
+let queryP: Promise<Query> | null = null
 
-let initPromise: Promise<void> | null = null
-let langPromise: Promise<any> | null = null
+export async function getMoonbitWithQuery(highlightsSource: string) {
+  if (!initP) initP = Parser.init({ locateFile: () => RUNTIME_WASM_URL })
+  await initP
 
-export async function getMoonbit() {
-  if (!initPromise) {
-    initPromise = Parser.init({ locateFile: () => RUNTIME_WASM_URL })
-  }
-  await initPromise
+  if (!langP) langP = Language.load(MOONBIT_WASM_URL)
+  const language = await langP
 
-  if (!langPromise) {
-    langPromise = Language.load(MOONBIT_WASM_URL)
-  }
-  const language = await langPromise
+  if (!queryP) queryP = Promise.resolve(new Query(language, highlightsSource))
+  const query = await queryP
 
   const parser = new Parser()
   parser.setLanguage(language)
 
-  return { parser, language }
+  return { parser, language, query }
 }
 
