@@ -72,6 +72,9 @@ library
         Moongle.Server.Handler
         Moongle.Env
         Moongle.TypeSearch
+        Moongle.DB
+        Moongle.DB.Types
+        Moongle.DB.Index
 
     -- Modules included in this library but not exported.
     other-modules:
@@ -107,6 +110,9 @@ library
         time,
         warp,
         containers,
+        opaleye,
+        effectful-opaleye,
+        effectful-postgresql,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -162,7 +168,7 @@ test-suite moongle-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.21.0.0,
+        base,
         moongle,
         effectful,
         bytestring,

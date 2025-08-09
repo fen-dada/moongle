@@ -35,6 +35,8 @@
           ninja
           gnumake
           zlib
+          postgresql_17
+          pkg-config
 
           haskell.compiler.ghc912
           haskell.packages.ghc912.haskell-language-server

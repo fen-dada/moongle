@@ -5,6 +5,7 @@ module Moongle.TypeSearch
   ( lexemesForFnDecl,
     lexemesForQuery,
     lexemesForFiles,
+    toTsVectorLiteral,
   )
 where
 
@@ -22,6 +23,9 @@ import Moongle.Query.Syntax
 
 -- >>> lexemesForQuery (TyQuery (TypeQuery {queryTyParams = [(TCon "K" [],[CTrait (TTrait Nothing "Compare")]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffAsync,EffException (Araise (TName Nothing (TCon "E" [])))]}))
 -- ["attr,async.","e,E.","mn,1,Int.","v,1,1","v,2,1","mn,r,Int."]
+
+-- >>> lexemesForQuery (NmQuery $ NameQuery Nothing $ TCon "insert" [])
+-- ["sym,insert."]
 
 lexemesForFnDecl :: Maybe TPath -> FnDecl' -> [Text]
 lexemesForFnDecl mPath decl =
@@ -184,3 +188,6 @@ collectFns = concatMap go
 toTPath :: ModulePath -> TPath
 toTPath ModulePath {..} =
   TPath (mpPackagePath ++ [mpUserName]) mpModuleName
+
+toTsVectorLiteral :: [Text] -> Text
+toTsVectorLiteral xs = T.intercalate " " [ "'" <> x <> "':1" | x <- xs ]

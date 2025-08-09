@@ -21,6 +21,7 @@ import Moongle.Query.Syntax
 import System.FilePath
 import Text.FuzzyFind
 import Prelude hiding (readFile)
+import Moongle.Registry (PackageId(..))
 
 data QueryEntry = QueryEntry {qeModulePath :: ModulePath, qeDecl :: Decl}
   deriving (Show, Eq)
@@ -75,30 +76,77 @@ parseAllMbti = do
   when (null mbtis) $ throwError @String "No MBTI files found or parsed"
   pure mbtis
 
+parsePkgIdFromPath :: FilePath -> Maybe PackageId
+parsePkgIdFromPath fp =
+  case reverse (splitDirectories (takeDirectory fp)) of
+    (nv:ownerDir:"packages":_) ->
+      case breakRev '-' nv of
+        Just (nm, ver) -> Just (PackageId (t ownerDir) (t nm) (t ver))
+        _              -> Nothing
+    _ -> Nothing
+  where
+    t = T.pack
+    breakRev c s = case span (/= c) (reverse s) of
+      (revVer, _ : revNmRev) -> Just (reverse revNmRev, reverse revVer)
+      _                      -> Nothing
+
+collectMbtiFilesWithPkg
+  :: (FileSystem :> es, Reader Config :> es)
+  => Eff es [(PackageId, FilePath)]
+collectMbtiFilesWithPkg = do
+  lp   <- asks (^. moongleStoragePath)
+  let root = T.unpack lp </> "packages"
+  go root
+  where
+    go :: (FileSystem :> es) => FilePath -> Eff es [(PackageId, FilePath)]
+    go fp = do
+      isDir <- doesDirectoryExist fp
+      if isDir
+        then do
+          entries <- listDirectory fp
+          concat <$> traverse go [fp </> e | e <- entries, e /= ".", e /= ".."]
+        else pure [ (pid, fp) | takeExtension fp == ".mbti", Just pid <- [parsePkgIdFromPath fp] ]
+
+parseAllMbtiWithPkg
+  :: (Reader Config :> es, FileSystem :> es, Log :> es, Error String :> es)
+  => Eff es [(PackageId, MbtiFile)]
+parseAllMbtiWithPkg = do
+  paths <- collectMbtiFilesWithPkg
+  xs <- forM paths $ \(pid, path) -> do
+    b <- readFile path
+    let contents = decodeUtf8 b
+    case parseMbti path contents of
+      Left err -> logAttention_ ("Failed to parse " <> T.pack path <> ": " <> T.pack (show err)) >> pure Nothing
+      Right m  -> pure (Just (pid, m))
+  let rs = catMaybes xs
+  when (null rs) $ throwError @String "No MBTI files found or parsed"
+  pure rs
+
 query :: (Reader Env :> es, Log :> es) => Query -> Eff es QueryResult
 query (NmQuery (NameQuery _ (TCon q _))) = do
-  Env mbtis _ <- ask
-  -- NOTE: We only handle function declarations for now
-  let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> mapMaybe (mkEntry mp) decls) mbtis
-  let result = fuzzyFindOn getSearchString [q] flattenedDecls
-  pure $ QueryResult result
-  where
-    mkEntry mp d@FnDecl {} = Just (QueryEntry mp d)
-    mkEntry mp d@TypeDecl {} = Just (QueryEntry mp d)
-    mkEntry mp d@ConstDecl {} = Just (QueryEntry mp d)
-    mkEntry mp d@EnumDecl {} = Just (QueryEntry mp d)
-    mkEntry _ _ = Nothing
-
-    mkFunString :: FnDecl' -> String
-    mkFunString (FnDecl' (FnSig name _ _ _ _) _ _) = name
-
-    -- NOTE: SAFETY: We filtered the decls
-    getSearchString :: QueryEntry -> String
-    getSearchString (QueryEntry _ (FnDecl f)) = mkFunString f
-    getSearchString (QueryEntry _ (TypeDecl _ _ (TName _tpath (TCon name _)) _)) = name
-    getSearchString (QueryEntry _ (ConstDecl name _)) = name
-    getSearchString (QueryEntry _ (EnumDecl _ (TName _ (TCon name _)) _)) = name
-    getSearchString _ = error "Impossible"
-query _ = do
-  logAttention_ "Type queries are not yet implemented"
-  pure $ QueryResult []
+  undefined
+--   Env mbtis _ <- ask
+--   -- NOTE: We only handle function declarations for now
+--   let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> mapMaybe (mkEntry mp) decls) mbtis
+--   let result = fuzzyFindOn getSearchString [q] flattenedDecls
+--   pure $ QueryResult result
+--   where
+--     mkEntry mp d@FnDecl {} = Just (QueryEntry mp d)
+--     mkEntry mp d@TypeDecl {} = Just (QueryEntry mp d)
+--     mkEntry mp d@ConstDecl {} = Just (QueryEntry mp d)
+--     mkEntry mp d@EnumDecl {} = Just (QueryEntry mp d)
+--     mkEntry _ _ = Nothing
+--
+--     mkFunString :: FnDecl' -> String
+--     mkFunString (FnDecl' (FnSig name _ _ _ _) _ _) = name
+--
+--     -- NOTE: SAFETY: We filtered the decls
+--     getSearchString :: QueryEntry -> String
+--     getSearchString (QueryEntry _ (FnDecl f)) = mkFunString f
+--     getSearchString (QueryEntry _ (TypeDecl _ _ (TName _tpath (TCon name _)) _)) = name
+--     getSearchString (QueryEntry _ (ConstDecl name _)) = name
+--     getSearchString (QueryEntry _ (EnumDecl _ (TName _ (TCon name _)) _)) = name
+--     getSearchString _ = error "Impossible"
+-- query _ = do
+--   logAttention_ "Type queries are not yet implemented"
+--   pure $ QueryResult []

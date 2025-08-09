@@ -5,6 +5,6 @@ import Data.Time (UTCTime)
 import Data.Text (Text)
 
 -- | The running environment for Moongle.
-data Env = Env {index :: [MbtiFile], lastUpdate :: UTCTime}
+data Env = Env {lastUpdate :: UTCTime}
   deriving (Show, Eq)
 
