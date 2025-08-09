@@ -102,7 +102,6 @@ library
         log-effectful,
         http-client,
         parsec,
-        fuzzyfind,
         servant,
         servant-server,
         servant-client,
