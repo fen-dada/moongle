@@ -2,6 +2,7 @@
 
 module Moongle.Query where
 
+import Data.List (elemIndex)
 import Control.Lens
 import Control.Monad
 import Data.Maybe
@@ -12,22 +13,19 @@ import Effectful.Error.Static
 import Effectful.FileSystem
 import Effectful.FileSystem.IO.ByteString.Lazy
 import Effectful.Log
+import Effectful.PostgreSQL
 import Effectful.Reader.Static
 import Language.Moonbit.Mbti
 import Language.Moonbit.Mbti.Syntax
 import Moongle.Config
-import Moongle.Env
+import Moongle.DB
+import Moongle.DB.Index
 import Moongle.Query.Syntax
+import Moongle.Registry (PackageId (..))
+import Moongle.TypeSearch
 import System.FilePath
-import Text.FuzzyFind
 import Prelude hiding (readFile)
-import Moongle.Registry (PackageId(..))
-
-data QueryEntry = QueryEntry {qeModulePath :: ModulePath, qeDecl :: Decl}
-  deriving (Show, Eq)
-
-newtype QueryResult = QueryResult {qrDecls :: [(Alignment, QueryEntry)]}
-  deriving (Show, Eq)
+import Data.Int (Int64)
 
 collectMbtiFiles :: (FileSystem :> es, Reader Config :> es) => Eff es [FilePath]
 collectMbtiFiles = do
@@ -78,23 +76,30 @@ parseAllMbti = do
 
 parsePkgIdFromPath :: FilePath -> Maybe PackageId
 parsePkgIdFromPath fp =
-  case reverse (splitDirectories (takeDirectory fp)) of
-    (nv:ownerDir:"packages":_) ->
-      case breakRev '-' nv of
-        Just (nm, ver) -> Just (PackageId (t ownerDir) (t nm) (t ver))
-        _              -> Nothing
-    _ -> Nothing
+  let dirs = splitDirectories (takeDirectory fp)
+  in case elemIndex "packages" dirs of
+       Just i | i + 2 < length dirs ->
+         let ownerDir    = dirs !! (i + 1)
+             nameVersion = dirs !! (i + 2)      -- e.g. "elk-0.1.0"
+         in case splitNameVersion nameVersion of
+              Just (nm, ver) -> Just (PackageId (t ownerDir) (t nm) (t ver))
+              Nothing        -> Nothing
+       _ -> Nothing
   where
     t = T.pack
-    breakRev c s = case span (/= c) (reverse s) of
-      (revVer, _ : revNmRev) -> Just (reverse revNmRev, reverse revVer)
-      _                      -> Nothing
+    splitNameVersion s =
+      case break (=='-') (reverse s) of
+        (revVer, '-' : revNameRev) ->
+          let ver = reverse revVer
+              nm  = reverse revNameRev
+          in if null nm || null ver then Nothing else Just (nm, ver)
+        _ -> Nothing
 
-collectMbtiFilesWithPkg
-  :: (FileSystem :> es, Reader Config :> es)
-  => Eff es [(PackageId, FilePath)]
+collectMbtiFilesWithPkg ::
+  (FileSystem :> es, Reader Config :> es) =>
+  Eff es [(PackageId, FilePath)]
 collectMbtiFilesWithPkg = do
-  lp   <- asks (^. moongleStoragePath)
+  lp <- asks (^. moongleStoragePath)
   let root = T.unpack lp </> "packages"
   go root
   where
@@ -105,11 +110,11 @@ collectMbtiFilesWithPkg = do
         then do
           entries <- listDirectory fp
           concat <$> traverse go [fp </> e | e <- entries, e /= ".", e /= ".."]
-        else pure [ (pid, fp) | takeExtension fp == ".mbti", Just pid <- [parsePkgIdFromPath fp] ]
+        else pure [(pid, fp) | takeExtension fp == ".mbti", Just pid <- [parsePkgIdFromPath fp]]
 
-parseAllMbtiWithPkg
-  :: (Reader Config :> es, FileSystem :> es, Log :> es, Error String :> es)
-  => Eff es [(PackageId, MbtiFile)]
+parseAllMbtiWithPkg ::
+  (Reader Config :> es, FileSystem :> es, Log :> es, Error String :> es) =>
+  Eff es [(PackageId, MbtiFile)]
 parseAllMbtiWithPkg = do
   paths <- collectMbtiFilesWithPkg
   xs <- forM paths $ \(pid, path) -> do
@@ -117,36 +122,38 @@ parseAllMbtiWithPkg = do
     let contents = decodeUtf8 b
     case parseMbti path contents of
       Left err -> logAttention_ ("Failed to parse " <> T.pack path <> ": " <> T.pack (show err)) >> pure Nothing
-      Right m  -> pure (Just (pid, m))
+      Right m -> pure (Just (pid, m))
   let rs = catMaybes xs
   when (null rs) $ throwError @String "No MBTI files found or parsed"
   pure rs
 
-query :: (Reader Env :> es, Log :> es) => Query -> Eff es QueryResult
-query (NmQuery (NameQuery _ (TCon q _))) = do
-  undefined
---   Env mbtis _ <- ask
---   -- NOTE: We only handle function declarations for now
---   let flattenedDecls = concatMap (\(MbtiFile mp _ decls) -> mapMaybe (mkEntry mp) decls) mbtis
---   let result = fuzzyFindOn getSearchString [q] flattenedDecls
---   pure $ QueryResult result
---   where
---     mkEntry mp d@FnDecl {} = Just (QueryEntry mp d)
---     mkEntry mp d@TypeDecl {} = Just (QueryEntry mp d)
---     mkEntry mp d@ConstDecl {} = Just (QueryEntry mp d)
---     mkEntry mp d@EnumDecl {} = Just (QueryEntry mp d)
---     mkEntry _ _ = Nothing
+insertMbtiToDB :: (WithConnection :> es, Log :> es, IOE :> es) => [(PackageId, MbtiFile)] -> Eff es Int64
+insertMbtiToDB xs = do
+  logInfo_ $ "insertMbtiToDB: " <> T.pack (show $ length xs) <> " MBTI files"
+  let rows = concatMap (uncurry mbtiToDefRows) xs
+  logInfo_ $ "Inserting " <> T.pack (show $ length rows) <> " definitions into database"
+  insertDefs rows <* logInfo_ "Insert completed"
+
+buildTsQuery :: [T.Text] -> T.Text
+buildTsQuery toks =
+  T.intercalate
+    " & "
+    [ quote l <> suffix l
+    | l <- toks
+    ]
+  where
+    quote x = "'" <> x <> "'"
+    suffix x = if T.isSuffixOf "." x then ":*" else ""
+
+queryDefSummary :: (WithConnection :> es, Log :> es, IOE :> es) => Query -> Eff es [DefSummary]
+queryDefSummary q = do
+  let qlxm = lexemesForQuery q
+  let tsq = buildTsQuery qlxm
+  selectByTsQuery tsq
+
+-- query :: (WithConnection :> es, Log :> es, IOE :> es) => Query -> Eff es QueryResult
+-- query q = do
+--   logInfo_ $ "Querying: " <> T.pack (show q)
+--   defsums <- queryDefSummary q
 --
---     mkFunString :: FnDecl' -> String
---     mkFunString (FnDecl' (FnSig name _ _ _ _) _ _) = name
 --
---     -- NOTE: SAFETY: We filtered the decls
---     getSearchString :: QueryEntry -> String
---     getSearchString (QueryEntry _ (FnDecl f)) = mkFunString f
---     getSearchString (QueryEntry _ (TypeDecl _ _ (TName _tpath (TCon name _)) _)) = name
---     getSearchString (QueryEntry _ (ConstDecl name _)) = name
---     getSearchString (QueryEntry _ (EnumDecl _ (TName _ (TCon name _)) _)) = name
---     getSearchString _ = error "Impossible"
--- query _ = do
---   logAttention_ "Type queries are not yet implemented"
---   pure $ QueryResult []

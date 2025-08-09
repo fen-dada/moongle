@@ -7,6 +7,7 @@ module Moongle.DB.Index where
 
 import Data.Text (Text)
 import Data.Text qualified as T
+import Language.Moonbit.Mbti.Pretty (renderDecl)
 import Language.Moonbit.Mbti.Syntax
 import Moongle.DB.Types
 import Moongle.Registry
@@ -30,7 +31,7 @@ mbtiToDefRows PackageId {..} (MbtiFile mp _ decls) =
               modName = T.pack (mpModuleName mp),
               modPkgPath = map T.pack (mpPackagePath mp),
               funName = T.pack (Language.Moonbit.Mbti.Syntax.funName sig),
-              prettySig = renderSig sig,
+              prettySig = renderDecl $ FnDecl fn,
               visibility = visOf fn,
               kind = kindOf knd,
               tokensLex = toks,
@@ -59,18 +60,6 @@ mbtiToDefRows PackageId {..} (MbtiFile mp _ decls) =
         isRaise (EffException NoAraise) = False
         isRaise (EffException _) = True
         isRaise _ = False
-
-    renderSig :: FnSig -> Text
-    renderSig (FnSig nm ps ret _ effs) =
-      let pshow = T.intercalate ", " (map (const "_") ps)
-          asyncPfx = if any (\case EffAsync -> True; _ -> False) effs then "async " else ""
-       in asyncPfx <> T.pack nm <> "(" <> pshow <> ") -> " <> renderTy ret
-
-    renderTy :: Type -> Text
-    renderTy (TName _ (TCon n _)) = T.pack n
-    renderTy (TFun {}) = "fn"
-    renderTy (TTuple xs) = "(" <> T.intercalate "," (map renderTy xs) <> ")"
-    renderTy (TDynTrait _) = "dyn"
 
     visOf :: FnDecl' -> Text
     visOf (FnDecl' (FnSig {}) _ _) = "pub" -- TODO: Visibility

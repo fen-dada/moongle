@@ -102,7 +102,6 @@ library
         log-effectful,
         http-client,
         parsec,
-        fuzzyfind,
         servant,
         servant-server,
         servant-client,
@@ -113,6 +112,7 @@ library
         opaleye,
         effectful-opaleye,
         effectful-postgresql,
+        postgresql-simple,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -179,4 +179,9 @@ test-suite moongle-test
         log-base,
         lens,
         filepath,
-        time
+        time,
+        opaleye,
+        effectful-opaleye,
+        effectful-postgresql,
+        postgresql-simple,
+
