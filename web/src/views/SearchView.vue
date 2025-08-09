@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
-//import CodeHighlighter from '../components/CodeHighlighter.vue'; // Import the new component
+import MoonBitHighlighter from '../components/CodeHighlighter.vue'
+import CodeHighlighter from '../components/CodeHighlighter.vue'; // Import the new component
 
 const route = useRoute();
 
@@ -89,8 +90,8 @@ watch(
         <a :href="`https://mooncakes.io/docs/${result.user}/${result.mod}/${result.package.join('/')}`" class="result-item-title">
           {{ result.user }}/{{ result.mod }}/{{ result.package.join('/') }}
         </a>
-        <!-- Replace the old pre tag with our new component -->
-        <pre class="result-item-snippet"><code>{{ result.decl }}</code></pre>
+        <!--<pre class="result-item-snippet"><code>{{ result.decl }}</code></pre> -->
+        <MoonBitHighlighter :code="result.decl" class="result-item-snippet" />
       </div>
     </div>
 

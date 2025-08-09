@@ -54,5 +54,6 @@
     "vite-plugin-vue-devtools": "^8.0.0",
     "vitest": "^3.2.4",
     "vue-tsc": "^3.0.4"
-  }
+  },
+  "postinstall": "cp node_modules/web-tree-sitter/tree-sitter.wasm public"
 }
