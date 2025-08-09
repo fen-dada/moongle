@@ -1,24 +1,70 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import MoonBitHighlighter from '../components/CodeHighlighter.vue'
+import CodeHighlighter from '../components/CodeHighlighter.vue'; // Import the new component
 
 const route = useRoute();
 
-// 计算属性，用于从 URL 实时获取搜索词，并展示在页面上
 const routeSearchQuery = computed(() => route.query.q || '');
+const searchResults = ref([]);
+const isLoading = ref(false);
+const error = ref(null);
+const hitsTotal = ref(0);
 
-// 在真实的应用中，你会在这里调用 API 来获取搜索结果
-const searchResults = computed(() => {
+async function fetchSearchResults() {
   if (!routeSearchQuery.value) {
-    return [];
+    searchResults.value = [];
+    hitsTotal.value = 0;
+    return;
   }
-  // 模拟 API 调用返回的结果
-  return [
-    { id: 1, title: `关于 "${routeSearchQuery.value}" 的第一条结果`, snippet: '这是一个结果的摘要内容，帮助用户快速了解链接详情。' },
-    { id: 2, title: `"${routeSearchQuery.value}" 的另一个相关结果`, snippet: '摘要内容可以从搜索到的文档中自动生成，通常是包含关键词的段落。' },
-    { id: 3, title: `探索更多关于 "${routeSearchQuery.value}"`, snippet: '点击标题可以跳转到该结果的详细页面。' },
-  ];
-});
+
+  isLoading.value = true;
+  error.value = null;
+
+  try {
+    const response = await fetch('/api/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dat: {
+          q: routeSearchQuery.value,
+          limit: 50,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`服务器返回错误: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status === 'ok' && data.dat) {
+      searchResults.value = data.dat.items;
+      hitsTotal.value = data.dat.hitsTotal;
+    } else {
+      throw new Error(data.err?.message || '获取搜索结果失败。');
+    }
+  } catch (e) {
+    error.value = e.message;
+    searchResults.value = [];
+    hitsTotal.value = 0;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+watch(
+  () => route.query.q,
+  () => {
+    fetchSearchResults();
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -30,12 +76,25 @@ const searchResults = computed(() => {
       请输入一个搜索词
     </h1>
 
-    <div v-if="searchResults.length > 0" class="results-list">
-      <div v-for="result in searchResults" :key="result.id" class="result-item">
-        <a href="#" class="result-item-title">{{ result.title }}</a>
-        <p class="result-item-snippet">{{ result.snippet }}</p>
+    <div v-if="isLoading" class="loading-state">
+      <p>正在加载...</p>
+    </div>
+
+    <div v-else-if="error" class="error-message">
+      <p>出错了: {{ error }}</p>
+    </div>
+
+    <div v-else-if="searchResults.length > 0" class="results-list">
+      <p class="hits-total">找到约 {{ hitsTotal }} 条结果</p>
+      <div v-for="(result, index) in searchResults" :key="index" class="result-item">
+        <a :href="`https://mooncakes.io/docs/${result.user}/${result.mod}/${result.package.join('/')}`" class="result-item-title">
+          {{ result.user }}/{{ result.mod }}/{{ result.package.join('/') }}
+        </a>
+        <!--<pre class="result-item-snippet"><code>{{ result.decl }}</code></pre> -->
+        <MoonBitHighlighter :code="result.decl" class="result-item-snippet" />
       </div>
     </div>
+
     <div v-else-if="routeSearchQuery" class="no-results">
       <p>没有找到与 "{{ routeSearchQuery }}" 相关的结果，请尝试其他关键词。</p>
     </div>
@@ -43,40 +102,52 @@ const searchResults = computed(() => {
 </template>
 
 <style scoped>
+/* Using CSS variables defined in App.vue for theming */
 .search-results-container {
-  display: flex;
-  flex: 1; /* Fill the parent .content-area */
-  flex-direction: column;
   width: 100%;
   max-width: 800px;
-  margin: 0 auto; /* Center the container horizontally */
+  margin: 0 auto;
   padding: 2rem;
   box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
-  /* background-color is now inherited from #app-layout */
 }
 
 .results-title {
+  color: var(--text-color);
   font-size: 1.75rem;
   font-weight: 600;
-  margin-bottom: 2.5rem;
-  color: #1e293b;
+  margin-bottom: 1rem;
 }
+
 .query-text {
-  color: #4f46e5;
+  color: var(--link-hover-color);
 }
+
+.hits-total {
+  color: var(--link-color);
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+
 .results-list {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
 }
+
 .result-item {
-  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--header-border);
+  padding: 1.5rem 0;
 }
+.result-item:first-child {
+  padding-top: 0;
+}
+.result-item:last-child {
+  border-bottom: none;
+}
+
 .result-item-title {
+  color: var(--link-hover-color);
   font-size: 1.25rem;
   font-weight: 500;
-  color: #4f46e5;
   text-decoration: none;
   display: inline-block;
   margin-bottom: 0.5rem;
@@ -84,16 +155,40 @@ const searchResults = computed(() => {
 .result-item-title:hover {
   text-decoration: underline;
 }
+
 .result-item-snippet {
-  font-size: 1rem;
+  color: var(--text-color);
+  background-color: var(--input-bg); /* Using input background for code blocks */
+  border: 1px solid var(--input-border);
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 0.9rem;
   line-height: 1.6;
-  color: #64748b;
-}
-.no-results {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: #64748b;
-  background-color: #f8fafc;
+  padding: 1rem;
   border-radius: 8px;
+  white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.no-results,
+.loading-state,
+.error-message {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--link-color);
+  border-radius: 8px;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.error-message {
+  color: #b91c1c; /* Dark red for text */
+  background-color: #fef2f2; /* Light red background */
+  border-color: #fecaca; /* Lighter red border */
+}
+
+html.dark .error-message {
+  color: #fca5a5; /* Light red text for dark mode */
+  background-color: #450a0a; /* Very dark red background */
+  border-color: #991b1b; /* Darker red border */
 }
 </style>

@@ -20,9 +20,11 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "axios": "^1.11.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "web-tree-sitter": "^0.25.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",
@@ -46,10 +48,12 @@
     "npm-run-all2": "^8.0.4",
     "oxlint": "~1.8.0",
     "prettier": "3.6.2",
+    "tree-sitter-cli": "^0.25.8",
     "typescript": "~5.8.0",
     "vite": "npm:rolldown-vite@latest",
     "vite-plugin-vue-devtools": "^8.0.0",
     "vitest": "^3.2.4",
     "vue-tsc": "^3.0.4"
-  }
+  },
+  "postinstall": "cp node_modules/web-tree-sitter/tree-sitter.wasm public"
 }
