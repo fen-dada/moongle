@@ -7,6 +7,7 @@ module Moongle.DB
     insertDefs,
     selectByTsQuery,
     selectByTsQueryInPkg,
+    getStats,
   )
 where
 
@@ -126,3 +127,14 @@ selectByTsQueryInPkg tsq (own, nm, ver) = do
         \ORDER BY fun_name \
         \LIMIT 200"
   EP.query sql (TE.encodeUtf8 tsq, own, nm, ver)
+
+getStats :: (WithConnection :> es, IOE :> es) => Eff es (Int64, Int64)
+getStats = do
+  rows <- EP.query_
+    "SELECT COUNT(*)::bigint AS defs_count, \
+    \       COUNT(DISTINCT (pkg_owner, pkg_name, pkg_version))::bigint AS pkg_count \
+    \FROM defs"
+  let (defs, pkgs) = case rows of
+        [(defsCnt, pkgsCnt)] -> (defsCnt, pkgsCnt)
+        _                    -> (0, 0)
+  pure (defs, pkgs)
