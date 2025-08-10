@@ -12,7 +12,6 @@ module Api exposing
 
 import Http
 import Json.Decode as D exposing (Decoder)
-import Json.Decode.Pipeline as P
 import Json.Encode as E
 
 
@@ -46,8 +45,8 @@ encodeSearchReq : SearchReq -> E.Value
 encodeSearchReq r =
     let
         base =
-            [ ( "q", E.string r.q ) ]
-                ++ (case r.limit of
+            ( "q", E.string r.q )
+                :: (case r.limit of
                         Just n ->
                             [ ( "limit", E.int n ) ]
 

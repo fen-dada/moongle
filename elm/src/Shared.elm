@@ -1,6 +1,5 @@
 module Shared exposing (Model, Msg(..), identity, init, subscriptions, update)
 
-import Browser
 import Browser.Navigation as Nav
 import Url exposing (Url)
 
