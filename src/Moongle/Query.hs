@@ -7,6 +7,7 @@ import Control.Lens
 import Control.Monad
 import Data.Maybe
 import Data.Text qualified as T
+import Data.Text (Text)
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Effectful
 import Effectful.Error.Static
@@ -134,21 +135,28 @@ insertMbtiToDB xs = do
   logInfo_ $ "Inserting " <> T.pack (show $ length rows) <> " definitions into database"
   insertDefs rows <* logInfo_ "Insert completed"
 
-buildTsQuery :: [T.Text] -> T.Text
-buildTsQuery toks =
-  T.intercalate
-    " & "
-    [ quote l <> suffix l
-    | l <- toks
-    ]
+escapeTsqueryLexeme :: Text -> Text
+escapeTsqueryLexeme = T.replace "'" "''"
+
+buildTsQueryStrict :: [Text] -> Text
+buildTsQueryStrict = buildTsQueryStrictWith (const False)
+
+buildTsQuery :: [Text] -> Text
+buildTsQuery = buildTsQueryStrictWith (T.isSuffixOf ".")
+
+buildTsQueryStrictWith :: (Text -> Bool) -> [Text] -> Text
+buildTsQueryStrictWith shouldPrefix toks =
+  T.intercalate " & " (map one toks)
   where
-    quote x = "'" <> x <> "'"
-    suffix x = if T.isSuffixOf "." x then ":*" else ""
+    one t =
+      let lit = "'" <> escapeTsqueryLexeme t <> "'"
+      in if shouldPrefix t then lit <> ":*" else lit
 
 queryDefSummary :: (WithConnection :> es, Log :> es, IOE :> es) => Query -> Eff es [DefSummary]
 queryDefSummary q = do
   let qlxm = lexemesForQuery q
   let tsq = buildTsQuery qlxm
+  logInfo_ $ "Querying with tsquery: " <> tsq
   selectByTsQuery tsq
 
 -- query :: (WithConnection :> es, Log :> es, IOE :> es) => Query -> Eff es QueryResult

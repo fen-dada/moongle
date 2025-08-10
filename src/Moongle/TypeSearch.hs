@@ -5,13 +5,12 @@ module Moongle.TypeSearch
   ( lexemesForFnDecl,
     lexemesForQuery,
     lexemesForFiles,
-    toTsVectorLiteral,
+    mkTSVector,
   )
 where
 
-import Data.List (sortOn)
 import Data.Map.Strict qualified as M
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, maybeToList)
 import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -22,53 +21,69 @@ import Moongle.Query.Syntax
 -- ["mn,1,Int.","mn,1,String.","mn,r,String."]
 
 -- >>> lexemesForQuery (TyQuery (TypeQuery {queryTyParams = [(TCon "K" [],[CTrait (TTrait Nothing "Compare")]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffAsync,EffException (Araise (TName Nothing (TCon "E" [])))]}))
--- ["attr,async.","e,E.","mn,1,Int.","v,1,1","v,2,1","mn,r,Int."]
+-- ["attr,async.","e,E.","mn,1,Int.","v,1,1","v,1,2","mn,r,Int."]
 
 -- >>> lexemesForQuery (NmQuery $ NameQuery Nothing $ TCon "insert" [])
 -- ["sym,insert."]
 
+tyParamIds :: [(TCon, a)] -> (S.Set Name, M.Map Name Int)
+tyParamIds typs =
+  let names = [ n | (TCon n _, _) <- typs ]
+  in ( S.fromList names
+     , M.fromList (zip names [1..])
+     )
+
+varIdsWith :: M.Map Name Int -> Type -> [Int]
+varIdsWith idMap = go
+  where
+    go (TName _ (TCon n args)) =
+      let here = maybeToList (M.lookup n idMap)
+      in here <> concatMap go args
+    go (TFun ps r _) = concatMap go ps <> go r
+    go (TTuple xs)   = concatMap go xs
+    go (TDynTrait _) = []
+
 lexemesForFnDecl :: Maybe TPath -> FnDecl' -> [Text]
 lexemesForFnDecl mPath decl =
-  let FnSig {..} = fnSig decl
-      varNames = tyParamNames funTyParams
-      mnKs = mentionKTokens varNames (map paramType funParams) funReturnType
-      mnR = mentionRTokens varNames funReturnType
+  let FnSig{..} = fnSig decl
+      (varNames, idMap) = tyParamIds funTyParams
+      mnKs  = mentionKTokens varNames idMap (map paramType funParams) funReturnType
+      mnR   = mentionRTokens  varNames idMap funReturnType
       attrs = effTokens funEff
-      sym = [symToken mPath (TCon funName [])]
-   in sym ++ attrs ++ mnKs ++ mnR
+      sym   = [symToken mPath (TCon funName [])]
+  in sym <> attrs <> mnKs <> mnR
 
 lexemesForQuery :: Query -> [Text]
 lexemesForQuery (NmQuery (NameQuery mp nm)) =
   [symToken mp nm]
 lexemesForQuery (TyQuery (TypeQuery typs ps ret effs)) =
-  let varNames = tyParamNames typs
-      mnKs = mentionKTokens varNames (map paramType ps) ret
-      mnR = mentionRTokens varNames ret
+  let (varNames, idMap) = tyParamIds typs
+      mnKs  = mentionKTokens varNames idMap (map paramType ps) ret
+      mnR   = mentionRTokens  varNames idMap ret
       attrs = effTokens effs
-   in attrs ++ mnKs ++ mnR
+  in attrs <> mnKs <> mnR
 
 -- ==== lexeme gen ====
 
-mentionKTokens :: S.Set Name -> [Type] -> Type -> [Text]
-mentionKTokens varNames params ret =
-  let occur = typeOccurs varNames (params ++ [ret])
+mentionKTokens :: S.Set Name -> M.Map Name Int -> [Type] -> Type -> [Text]
+mentionKTokens varNames idMap params ret =
+  let occur = typeOccurs varNames idMap (params <> [ret])
       mn =
         concatMap
-          (\(k, n) -> [token "mn" (T.pack (show i)) (k <> ".") | i <- [1 .. n]])
-          [(rp, n) | (Left rp, n) <- M.toList occur]
+          (\(k, n) -> [token "mn" (T.pack (show i)) (k <> ".") | i <- [1..n]])
+          [ (rp, n) | (Left rp,  n) <- M.toList occur ]
       vv =
         concatMap
-          (\(vid, n) -> [T.intercalate "," ["v", T.pack (show i), T.pack (show vid)] | i <- [1 .. n]])
-          [(vid, n) | (Right vid, n) <- M.toList occur]
-   in mn ++ vv
+          (\(vid, n) -> [T.intercalate "," ["v", T.pack (show i), T.pack (show vid)] | i <- [1..n]])
+          [ (vid, n) | (Right vid, n) <- M.toList occur ]
+  in mn <> vv
 
--- r
-mentionRTokens :: S.Set Name -> Type -> [Text]
-mentionRTokens varNames ty =
+mentionRTokens :: S.Set Name -> M.Map Name Int -> Type -> [Text]
+mentionRTokens varNames idMap ty =
   let ks = concreteNames varNames ty
-      vs = varIds varNames ty
-   in [token "mn" "r" (k <> ".") | k <- ks]
-        ++ [T.intercalate "," ["v", "r", T.pack (show vid)] | vid <- vs]
+      vs = varIdsWith idMap ty
+  in [ token "mn" "r" (k <> ".") | k <- ks ]
+     <> [ T.intercalate "," ["v","r", T.pack (show vid)] | vid <- vs ]
 
 -- effects
 effTokens :: [Effect] -> [Text]
@@ -96,20 +111,16 @@ symToken mp (TCon nm _) =
 
 -- ==== normalise ====
 
--- extract tyvar
-tyParamNames :: [(TCon, a)] -> S.Set Name
-tyParamNames = S.fromList . map (\(TCon n _, _) -> n)
-
 paramType :: FnParam -> Type
 paramType (AnonParam _ t) = t
 paramType (NamedParam _ _ t _ _) = t
 
--- Left revPathText for concrete tynamesl Right varId for tyvars
-typeOccurs :: S.Set Name -> [Type] -> M.Map (Either Text Int) Int
-typeOccurs varNames tys =
-  let ks = concatMap (map Left . concreteNames varNames) tys
-      vs = concatMap (map Right . varIds varNames) tys
-   in M.fromListWith (+) [(k, 1) | k <- ks ++ vs]
+typeOccurs :: S.Set Name -> M.Map Name Int -> [Type]
+           -> M.Map (Either Text Int) Int
+typeOccurs varNames idMap tys =
+  let ks = concatMap (map Left  . concreteNames varNames) tys
+      vs = concatMap (map Right . varIdsWith idMap)       tys
+  in M.fromListWith (+) [ (k,1) | k <- ks <> vs ]
 
 -- collect rev paths
 concreteNames :: S.Set Name -> Type -> [Text]
@@ -122,26 +133,6 @@ concreteNames varNames = go
     go (TTuple xs) = concatMap go xs
     go (TDynTrait _) = [] -- TODO: encode trait
     isVar n = n `S.member` varNames
-
--- collect normalised vars (noc asc + name)
-varIds :: S.Set Name -> Type -> [Int]
-varIds varNames ty =
-  let vs = collectVarNames ty
-      occ = M.fromListWith (+) [(v, 1 :: Int) | v <- vs]
-      order =
-        map fst $
-          sortOn (\(v, cnt) -> (cnt :: Int, v)) $
-            M.toList occ
-      canon = M.fromList (zip order [1 ..])
-   in mapMaybe (`M.lookup` canon) vs
-  where
-    collectVarNames = go
-    go (TName _ (TCon n args))
-      | n `S.member` varNames = n : concatMap go args
-      | otherwise = concatMap go args
-    go (TFun ps r _) = concatMap go ps ++ go r
-    go (TTuple xs) = concatMap go xs
-    go (TDynTrait _) = []
 
 -- ==== rendering ====
 
@@ -189,5 +180,8 @@ toTPath :: ModulePath -> TPath
 toTPath ModulePath {..} =
   TPath (mpPackagePath ++ [mpUserName]) mpModuleName
 
-toTsVectorLiteral :: [Text] -> Text
-toTsVectorLiteral xs = T.intercalate " " [ "'" <> x <> "':1" | x <- xs ]
+escapeLexeme :: Text -> Text
+escapeLexeme = T.replace "'" "''"
+
+mkTSVector :: [Text] -> Text
+mkTSVector xs = T.intercalate " " ["'" <> escapeLexeme x <> "':1" | x <- xs]

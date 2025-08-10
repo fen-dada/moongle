@@ -21,6 +21,7 @@ import Database.PostgreSQL.Simple.Types (PGArray (..))
 import Effectful
 import Effectful.PostgreSQL as EP
 import Moongle.DB.Types (DefRow (..))
+import Moongle.TypeSearch
 
 data DefSummary = DefSummary
   { username :: Text,
@@ -50,29 +51,33 @@ instance FromRow DefSummary where
           prettySig = ps
         }
 
-insertDefs :: (WithConnection :> es, IOE :> es) => [DefRow] -> Eff es Int64
+insertDefs ::
+  (WithConnection :> es, IOE :> es) =>
+  [DefRow] ->
+  Eff es Int64
 insertDefs rows = do
-  let sql :: Query
-      sql =
+  let sql =
         "INSERT INTO defs ( \
         \  username, mod, pkg_path, pkg_version, \
         \  fun_name, pretty_sig, visibility, kind, \
-        \  tokens_lex, arity, has_async, may_raise, \
+        \  tokens_lex, tokens, \
+        \  arity, has_async, may_raise, \
         \  version_tag, src_file, src_line, src_col \
-        \) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        \) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
   EP.executeMany sql (map defRowToParams rows)
 
 defRowToParams :: DefRow -> [Action]
 defRowToParams DefRow {..} =
   [ toField username,
     toField mod,
-    toField (PGArray pkgPath), -- text[]
+    toField (PGArray pkgPath),
     toField pkgVersion,
     toField funName,
     toField prettySig,
     toField visibility,
     toField kind,
-    toField (PGArray tokensLex), -- text[]
+    toField (PGArray tokensLex),
+    toField (mkTSVector tokensLex), -- generate tsvector from tokens_lex
     toField arity,
     toField hasAsync,
     toField mayRaise,
@@ -91,9 +96,8 @@ selectByTsQuery tsq = do
         \  username, \"mod\", pkg_version, pkg_path, \
         \  fun_name, pretty_sig \
         \FROM defs \
-        \WHERE tokens @@ to_tsquery('simple'::regconfig, ?) \
-        \ORDER BY user, mod, fun_name \
-        \LIMIT 200"
+        \WHERE tokens @@ (?::tsquery) \
+        \ORDER BY username, mod, fun_name"
   EP.query sql (Only tsq)
 
 -- (user, mod, version)
@@ -111,8 +115,7 @@ selectByTsQueryInPkg tsq (u, m, v) = do
         \FROM defs \
         \WHERE tokens @@ to_tsquery('simple'::regconfig, ?) \
         \  AND username = ? AND mod = ? AND pkg_version = ? \
-        \ORDER BY fun_name \
-        \LIMIT 200"
+        \ORDER BY fun_name"
   EP.query sql (tsq, u, m, v)
 
 -- Get stats

@@ -39,6 +39,7 @@ runMigrations = EP.withTransaction $ do
     \ visibility  text NOT NULL, \
     \ kind        text NOT NULL, \
     \ tokens_lex  text[] NOT NULL, \
+    \ tokens      tsvector NOT NULL, \
     \ arity int NOT NULL, \
     \ has_async boolean NOT NULL, \
     \ may_raise boolean NOT NULL, \
@@ -46,15 +47,7 @@ runMigrations = EP.withTransaction $ do
     \ src_file text, src_line int, src_col int \
     \ )"
 
-  _ <- EP.execute_ "DROP FUNCTION IF EXISTS my_array_to_string(ANYARRAY, TEXT);"
-  _ <- EP.execute_ "CREATE FUNCTION my_array_to_string(arr ANYARRAY, sep TEXT) RETURNS text LANGUAGE SQL IMMUTABLE AS 'SELECT array_to_string(arr, sep)';"
-  _ <- EP.execute_ "ALTER TABLE defs DROP COLUMN IF EXISTS tokens"
-  _ <- EP.execute_
-    "ALTER TABLE defs \
-    \  ADD COLUMN tokens tsvector GENERATED ALWAYS AS \
-    \    (to_tsvector('simple'::regconfig, my_array_to_string(tokens_lex,' '))) STORED"
-
-  -- 3) gin index on tokens
+  -- gin index on tokens
   _ <- EP.execute_ "CREATE INDEX IF NOT EXISTS defs_tokens_gin ON defs USING gin (tokens)"
   _ <- EP.execute_ "CREATE INDEX IF NOT EXISTS defs_pkg ON defs (username, mod, pkg_version)"
 

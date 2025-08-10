@@ -17,7 +17,6 @@ data DefRow = DefRow
   , kind       :: Text
 
   , tokensLex  :: [Text]
-  , tokensTSV  :: Text
   , arity      :: Int
   , hasAsync   :: Bool
   , mayRaise   :: Bool
