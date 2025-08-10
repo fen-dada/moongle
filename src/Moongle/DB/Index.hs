@@ -24,12 +24,10 @@ mbtiToDefRows PackageId {..} (MbtiFile mp _ decls) =
           tsv = toTsVectorLiteral toks
           (a, ha, mr) = deriveFlags sig
        in DefRow
-            { pkgOwner = owner,
-              pkgName = name,
-              pkgVersion = version,
-              modUser = T.pack (mpUserName mp),
-              modName = T.pack (mpModuleName mp),
-              modPkgPath = map T.pack (mpPackagePath mp),
+            { pkgVersion = version,
+              username = T.pack (mpUserName mp),
+              mod = T.pack (mpModuleName mp),
+              pkgPath = map T.pack (mpPackagePath mp),
               funName = T.pack (Language.Moonbit.Mbti.Syntax.funName sig),
               prettySig = renderDecl $ FnDecl fn,
               visibility = visOf fn,

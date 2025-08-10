@@ -38,9 +38,9 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
     defSummaryToSearchHit :: DefSummary -> SearchHit
     defSummaryToSearchHit DefSummary {..} =
       SearchHit
-        { user = modUser,
-          mod = modName,
-          package = [pkgOwner, pkgName, pkgVersion],
+        { user = username,
+          mod = mod,
+          package = package,
           decl = prettySig,
           score = 0
         }

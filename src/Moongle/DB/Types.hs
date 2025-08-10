@@ -6,13 +6,10 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 
 data DefRow = DefRow
-  { pkgOwner   :: Text
-  , pkgName    :: Text
+  { username   :: Text
+  , mod    :: Text
   , pkgVersion :: Text
-
-  , modUser    :: Text
-  , modName    :: Text
-  , modPkgPath :: [Text]
+  , pkgPath :: [Text]
 
   , funName    :: Text
   , prettySig  :: Text
