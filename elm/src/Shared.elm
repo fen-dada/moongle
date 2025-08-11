@@ -1,7 +1,6 @@
 module Shared exposing (Model, Msg(..), identity, init, subscriptions, update)
 
 import Browser.Navigation as Nav
-import Url exposing (Url)
 
 
 type alias Model =
@@ -14,8 +13,8 @@ type Msg
     = Noop
 
 
-init : () -> Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ _ key =
+init : () ->  Nav.Key -> ( Model, Cmd Msg )
+init _ key =
     ( { key = key
       , apiBase = "http://localhost:3000"
       }

@@ -1,34 +1,31 @@
 module Main exposing (main)
 
 import Browser
-import HelloWorld exposing (helloWorld)
-import Html exposing (Html, div, img)
-import Html.Attributes exposing (src, style)
-import Msg exposing (Msg(..))
-import VitePluginHelper
+import Pages.Home as Home
+import Pages.Search as Search
+import Pages.Stats as Stats
+import Pages.Tutorial as Tutorial
+import Route
+import Shared
+import Spa
+import View
 
 
-main : Program () Int Msg
 main =
-    Browser.sandbox { init = 0, update = update, view = view }
-
-
-update : Msg -> number -> number
-update msg model =
-    case msg of
-        Increment ->
-            model + 1
-
-        Decrement ->
-            model - 1
-        
-        Reset ->
-            0
-
-
-view : Int -> Html Msg
-view model =
-    div []
-        [ img [ src <| VitePluginHelper.asset "/src/assets/logo.png", style "width" "300px" ] []
-        , helloWorld model
-        ]
+    Spa.init
+        { defaultView = View.defaultView
+        , extractIdentity = Shared.identity
+        }
+        |> Spa.addPublicPage ( View.map, View.map ) Route.matchHome Home.page
+        |> Spa.addPublicPage ( View.map, View.map ) Route.matchSearch Search.page
+        |> Spa.addPublicPage ( View.map, View.map ) Route.matchStats Stats.page
+        |> Spa.addPublicPage ( View.map, View.map ) Route.matchTutorial Tutorial.page
+        |> Spa.application View.map
+            { toRoute = Route.toRoute
+            , init = Shared.init
+            , update = Shared.update
+            , subscriptions = Shared.subscriptions
+            , toDocument = View.toDocument
+            , protectPage = \_ -> Route.toUrl Route.Home
+            }
+        |> Browser.application

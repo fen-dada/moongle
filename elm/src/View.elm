@@ -68,7 +68,7 @@ navbar _ =
             , row [ spacing 22, centerY ]
                 [ Ui.navLink "Tutorial" (Route.toUrl Route.Tutorial)
                 , Ui.navLink "Stats" (Route.toUrl Route.Stats)
-                , Ui.navExternal "GitHub" "https://github.com/your-org/moongle"
+                , Ui.navExternal "GitHub" "https://github.com/HCHogan/moongle"
                 ]
             ]
 

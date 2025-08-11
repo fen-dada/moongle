@@ -1,13 +1,10 @@
-module Pages.Home exposing (..)
+module Pages.Home exposing (page)
 
 import Effect exposing (..)
 import Element exposing (..)
-import Element.Background as Background
-import Element.Border as Border
 import Element.Font as Font
 import Route
 import Shared
-import Spa
 import Spa.Page as Page
 import Ui
 import View
@@ -32,15 +29,15 @@ init _ =
     )
 
 
-update : Msg -> Model -> ( Model, Effect Shared.Msg Msg )
-update msg model =
+update : Msg -> ( Model, Effect Shared.Msg Msg ) -> ( Model, Effect Shared.Msg Msg )
+update msg ( model, _ ) =
     case msg of
         SetQ s ->
             ( { model | q = s }, Effect.none )
 
 
-view : Model -> View.View Msg
-view model =
+view : ( Model, Effect Shared.Msg Msg ) -> View.View Msg
+view ( model, _ ) =
     { title = "Moongle — Search"
     , body =
         column [ width fill, height fill, centerX, centerY ]
@@ -64,11 +61,10 @@ view model =
     }
 
 
-
--- page : Shared.Model -> Page.Page View () Shared.Model Model Msg
--- page _ =
---     Page.sandbox
---         { init = init
---         , update = update
---         , view = view
---         }
+page : a -> Page.Page Flags sharedMsg (View.View Msg) ( Model, Effect Shared.Msg Msg ) Msg
+page _ =
+    Page.sandbox
+        { init = init
+        , update = update
+        , view = view
+        }
