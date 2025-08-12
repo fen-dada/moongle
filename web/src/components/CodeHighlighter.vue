@@ -1,6 +1,6 @@
 <template>
   <div class="moonbit-highlighter">
-    <pre v-if="loading" class="loading">正在加载语法高亮...</pre>
+    <pre v-if="loading" class="loading">Loading syntax highlighting...</pre>
     <pre v-else-if="error" class="error">{{ error }}</pre>
     <pre v-else class="code-container"><code v-html="highlightedCode"></code></pre>
   </div>
@@ -51,8 +51,8 @@ export default {
         this.loading = false
         this.highlightCode()
       } catch (err) {
-        console.error('初始化解析器失败:', err)
-        this.error = `初始化失败: ${err?.message || err}`
+        console.error('Failed to initialize parser:', err)
+        this.error = `Initialization failed: ${err?.message || err}`
         this.loading = false
       }
     },
@@ -130,7 +130,7 @@ export default {
         )
         */
       } catch (err) {
-        console.error('代码高亮失败:', err)
+        console.error('Code highlighting failed:', err)
         this.highlightedCode = this.escapeHtml(src)
       }
     },

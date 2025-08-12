@@ -38,7 +38,7 @@ async function fetchSearchResults() {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`服务器返回错误: ${response.status} - ${errorText}`);
+      throw new Error(`Server returned an error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -47,7 +47,7 @@ async function fetchSearchResults() {
       searchResults.value = data.dat.items;
       hitsTotal.value = data.dat.hitsTotal;
     } else {
-      throw new Error(data.err?.message || '获取搜索结果失败。');
+      throw new Error(data.err?.message || 'Failed to fetch search results.');
     }
   } catch (e) {
     error.value = e.message;
@@ -82,22 +82,22 @@ watch(
 <template>
   <div class="search-results-container">
     <h1 class="results-title" v-if="routeSearchQuery">
-      搜索结果: <span class="query-text">"{{ routeSearchQuery }}"</span>
+      Search Results: <span class="query-text">"{{ routeSearchQuery }}"</span>
     </h1>
     <h1 class="results-title" v-else>
-      请输入一个搜索词
+      Please enter a search term
     </h1>
 
     <div v-if="isLoading" class="loading-state">
-      <p>正在加载...</p>
+      <p>Loading...</p>
     </div>
 
     <div v-else-if="error" class="error-message">
-      <p>出错了: {{ error }}</p>
+      <p>An error occurred: {{ error }}</p>
     </div>
 
     <div v-else-if="searchResults.length > 0" class="results-list">
-      <p class="hits-total">找到约 {{ hitsTotal }} 条结果</p>
+      <p class="hits-total">Found about {{ hitsTotal }} results</p>
       <div v-for="(result, index) in searchResults" :key="index" class="result-item">
         <a
             :href="`https://mooncakes.io/docs/${result.user}/${result.mod}/${result.package.join('/')}#${extractSymbol(result.decl)}`" class="result-item-title">
@@ -110,7 +110,7 @@ watch(
     </div>
 
     <div v-else-if="routeSearchQuery" class="no-results">
-      <p>没有找到与 "{{ routeSearchQuery }}" 相关的结果，请尝试其他关键词。</p>
+      <p>No results found for "{{ routeSearchQuery }}". Please try other keywords.</p>
     </div>
   </div>
 </template>

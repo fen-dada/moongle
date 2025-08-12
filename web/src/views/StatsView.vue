@@ -21,10 +21,10 @@ async function fetchStats() {
     if (!response.ok) {
       // Handle HTTP errors like 404, 500, etc.
       if (response.status === 500) {
-        error.value = '服务器内部错误 (500)，请稍后重试或联系管理员。'
+        error.value = 'Internal Server Error (500), please try again later or contact an administrator.'
       } else {
         const errorText = await response.text();
-        error.value = `服务器返回了非预期的响应: ${response.status} - ${errorText}`;
+        error.value = `The server returned an unexpected response: ${response.status} - ${errorText}`;
       }
       // Stop execution since we have an error
       return;
@@ -43,18 +43,18 @@ async function fetchStats() {
       ) {
         stats.value = receivedStats;
       } else {
-        error.value = '从服务器收到了无效的统计数据格式。';
+        error.value = 'Received invalid statistics format from the server.';
       }
     } else {
-      error.value = data.err?.message || '获取统计数据失败。';
+      error.value = data.err?.message || 'Failed to fetch statistics.';
     }
   } catch (e: any) {
     // This will now primarily catch network errors or actual JSON parsing errors
     // on a 2xx response.
     if (e instanceof SyntaxError) {
-      error.value = '无法将服务器的成功响应解析为JSON。';
+      error.value = 'Could not parse the successful server response as JSON.';
     } else {
-      error.value = `请求失败: ${e.message}`;
+      error.value = `Request failed: ${e.message}`;
     }
   } finally {
     loading.value = false
@@ -73,13 +73,13 @@ onMounted(() => {
 
 <template>
   <div class="page-container">
-    <h1>统计数据</h1>
+    <h1>Statistics</h1>
     <div v-if="loading" class="loading-indicator">
-      <p>加载中...</p>
+      <p>Loading...</p>
     </div>
     <div v-else-if="error" class="error-message">
-      <p>加载数据失败: {{ error }}</p>
-      <button @click="fetchStats">重试</button>
+      <p>Failed to load data: {{ error }}</p>
+      <button @click="fetchStats">Retry</button>
     </div>
     <div v-else-if="stats" class="stats-grid">
       <div class="stat-item">
@@ -91,7 +91,7 @@ onMounted(() => {
         <div class="stat-label">Modules</div>
       </div>
       <div class="stat-item stat-item-full">
-        <div class="stat-label">最后索引时间</div>
+        <div class="stat-label">Last Indexed Time</div>
         <div class="stat-value-small">{{ formatDateTime(stats.lastIndexed) }}</div>
       </div>
     </div>
