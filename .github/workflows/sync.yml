@@ -61,6 +61,9 @@ jobs:
             echo "WARNING: 'automation' branch not found on origin; no workflows restored."
           fi
 
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           # 3) 若有改动则提交一个“注入 workflow”的轻提交
           if ! git diff --quiet || ! git diff --cached --quiet; then
             git add .github/workflows || true
