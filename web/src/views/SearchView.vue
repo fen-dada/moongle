@@ -57,7 +57,19 @@ async function fetchSearchResults() {
     isLoading.value = false;
   }
 }
-
+const capitalize = (str) =>  {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+const extractSymbol = (decl) => {
+  if (typeof decl !== 'string') return '';
+  // 匹配类似 Ref::map 或 MyType::myMethod
+  const m = decl.match(/([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*)/);
+  if (m) return `${m[1]}::${m[2]}`;
+  // 如果没找到 :: ，回退到函数名
+  const m2 = decl.match(/\bfn\b(?:\[[^\]]*\])?\s+([A-Za-z_][A-Za-z0-9_]*)/);
+  return m2 ? m2[1] : '';
+}
 watch(
   () => route.query.q,
   () => {
@@ -87,8 +99,10 @@ watch(
     <div v-else-if="searchResults.length > 0" class="results-list">
       <p class="hits-total">找到约 {{ hitsTotal }} 条结果</p>
       <div v-for="(result, index) in searchResults" :key="index" class="result-item">
-        <a :href="`https://mooncakes.io/docs/${result.user}/${result.mod}/${result.package.join('/')}`" class="result-item-title">
-          {{ result.user }}/{{ result.mod }}/{{ result.package.join('/') }}
+        <a
+            :href="`https://mooncakes.io/docs/${result.user}/${result.mod}/${result.package.join('/')}#${extractSymbol(result.decl)}`" class="result-item-title">
+          {{ result.user }}/{{ result.mod }}/{{ result.package.join('/')
+          }}
         </a>
         <!--<pre class="result-item-snippet"><code>{{ result.decl }}</code></pre> -->
         <MoonBitHighlighter :code="result.decl" class="result-item-snippet" />
