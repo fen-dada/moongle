@@ -11,7 +11,7 @@ import Language.Moonbit.Mbti.Pretty (renderDecl)
 import Language.Moonbit.Mbti.Syntax
 import Moongle.DB.Types
 import Moongle.Registry
-import Moongle.TypeSearch (lexemesForFnDecl, toTsVectorLiteral)
+import Moongle.TypeSearch (lexemesForFnDecl)
 
 mbtiToDefRows :: PackageId -> MbtiFile -> [DefRow]
 mbtiToDefRows PackageId {..} (MbtiFile mp _ decls) =
@@ -21,21 +21,17 @@ mbtiToDefRows PackageId {..} (MbtiFile mp _ decls) =
   where
     rowOf mpath fn@(FnDecl' sig _ knd) =
       let toks = lexemesForFnDecl mpath fn
-          tsv = toTsVectorLiteral toks
           (a, ha, mr) = deriveFlags sig
        in DefRow
-            { pkgOwner = owner,
-              pkgName = name,
-              pkgVersion = version,
-              modUser = T.pack (mpUserName mp),
-              modName = T.pack (mpModuleName mp),
-              modPkgPath = map T.pack (mpPackagePath mp),
+            { pkgVersion = version,
+              username = T.pack (mpUserName mp),
+              mod = T.pack (mpModuleName mp),
+              pkgPath = map T.pack (mpPackagePath mp),
               funName = T.pack (Language.Moonbit.Mbti.Syntax.funName sig),
               prettySig = renderDecl $ FnDecl fn,
               visibility = visOf fn,
               kind = kindOf knd,
               tokensLex = toks,
-              tokensTSV = tsv,
               arity = a,
               hasAsync = ha,
               mayRaise = mr,

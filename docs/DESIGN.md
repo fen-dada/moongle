@@ -19,20 +19,37 @@ Out of scope (v1): learned ranking, fuzzy name matching, result pagination UX.
 
 **Table**: `defs` (one row per exported definition/function)
 
-```sql
-CREATE TABLE defs (
-  id              BIGSERIAL PRIMARY KEY,
-  module_path     TEXT NOT NULL,          -- e.g. "pkg.mod.Sub"
-  def_name        TEXT NOT NULL,          -- e.g. "map"
-  arity           INT  NOT NULL,          -- number of value parameters
-  signature_jsonb JSONB NOT NULL,         -- normalized AST of type signature
-  type_lex        TSVECTOR NOT NULL,      -- constructed lexeme bag (see §2)
-  index_version   INT NOT NULL DEFAULT 1  -- bump when lexeme schema changes
-);
-CREATE INDEX defs_type_lex_gin ON defs USING GIN (type_lex);
+```text
+hank@/tmp:postgres> \d defs;
++-------------+----------+--------------------------------------------------------+
+| Column      | Type     | Modifiers                                              |
+|-------------+----------+--------------------------------------------------------|
+| def_id      | bigint   |  not null default nextval('defs_def_id_seq'::regclass) |
+| username    | text     |  not null                                              |
+| mod         | text     |  not null                                              |
+| pkg_path    | text[]   |  not null                                              |
+| pkg_version | text     |  not null                                              |
+| fun_name    | text     |  not null                                              |
+| pretty_sig  | text     |  not null                                              |
+| visibility  | text     |  not null                                              |
+| kind        | text     |  not null                                              |
+| tokens_lex  | text[]   |  not null                                              |
+| tokens      | tsvector |  not null                                              |
+| arity       | integer  |  not null                                              |
+| has_async   | boolean  |  not null                                              |
+| may_raise   | boolean  |  not null                                              |
+| version_tag | text     |  not null                                              |
+| src_file    | text     |                                                        |
+| src_line    | integer  |                                                        |
+| src_col     | integer  |                                                        |
++-------------+----------+--------------------------------------------------------+
+Indexes:
+    "defs_pkey" PRIMARY KEY, btree (def_id)
+    "defs_pkg" btree (username, mod, pkg_version)
+    "defs_tokens_gin" gin (tokens)
 ```
 
-> We deliberately keep `type_lex` as a prebuilt `tsvector` for speed and control.
+> We deliberately keep `tokens` as a prebuilt `tsvector` for speed and control.
 
 ---
 
@@ -106,7 +123,7 @@ ar,3        -- 3 parameters
    * **Effects/raises**.
    * **Arity**.
 3. Build lexeme strings; **quote/escape** each; join into a `tsvector` literal.
-4. `UPDATE defs SET type_lex = '<literal>'::tsvector WHERE id = ...;`
+4. `UPDATE defs SET tokens = '<literal>'::tsvector WHERE id = ...;`
 
 > Rebuild strategy: bump `index_version`, backfill column, swap.
 
@@ -120,29 +137,29 @@ We always use `to_tsquery` with quoted lexemes and `:*` for prefix.
 
 ```sql
 -- any mention of List.*
-WHERE type_lex @@ to_tsquery('''mn,1,list.*'':*')
-   OR type_lex @@ to_tsquery('''mn,r,list.*'':*')
+WHERE tokens @@ to_tsquery('''mn,1,list.*'':*')
+   OR tokens @@ to_tsquery('''mn,r,list.*'':*')
 ```
 
 ### 5.2 Generator: **returns T**, but **does not consume T**
 
 ```sql
-WHERE type_lex @@ to_tsquery('''mn,r,result.*'':*')
-  AND NOT (type_lex @@ to_tsquery('''mn,1,result.*'':*'))
+WHERE tokens @@ to_tsquery('''mn,r,result.*'':*')
+  AND NOT (tokens @@ to_tsquery('''mn,1,result.*'':*'))
 ```
 
 ### 5.3 Processor: **consumes T**, but **does not return T**
 
 ```sql
-WHERE type_lex @@ to_tsquery('''mn,1,text.*'':*')
-  AND NOT (type_lex @@ to_tsquery('''mn,r,text.*'':*'))
+WHERE tokens @@ to_tsquery('''mn,1,text.*'':*')
+  AND NOT (tokens @@ to_tsquery('''mn,r,text.*'':*'))
 ```
 
 ### 5.4 Effect handler / effectful functions
 
 ```sql
 -- functions that raise IO.Error.*
-WHERE type_lex @@ to_tsquery('''me,e,io.error.*'':*')
+WHERE tokens @@ to_tsquery('''me,e,io.error.*'':*')
 ```
 
 ### 5.5 Variable-shape queries (α-robust)
@@ -150,20 +167,20 @@ WHERE type_lex @@ to_tsquery('''me,e,io.error.*'':*')
 * Example: pattern `a -> b -> b` ("returns the second arg’s type")
 
 ```sql
-WHERE type_lex @@ to_tsquery('''v,1,1'' & ''v,2,2'' & ''v,r,2''')
+WHERE tokens @@ to_tsquery('''v,1,1'' & ''v,2,2'' & ''v,r,2''')
 ```
 
 * Example: pattern `a -> a` (id function)
 
 ```sql
-WHERE type_lex @@ to_tsquery('''v,1,1'' & ''v,r,1''')
+WHERE tokens @@ to_tsquery('''v,1,1'' & ''v,r,1''')
 ```
 
 ### 5.6 Arity filter
 
 ```sql
 -- exactly 2 params
-AND type_lex @@ to_tsquery('''ar,2''')
+AND tokens @@ to_tsquery('''ar,2''')
 ```
 
 > Compose with `&` (AND), `|` (OR), `!` (NOT). Always lowercase user text and reverse paths before building `tsquery`.
@@ -172,7 +189,7 @@ AND type_lex @@ to_tsquery('''ar,2''')
 
 ## 6. Ranking (v1)
 
-Base: `ts_rank_cd(type_lex, <tsquery>, weights)` where `weights = '{A,B,C,D}'`.
+Base: `ts_rank_cd(tokens, <tsquery>, weights)` where `weights = '{A,B,C,D}'`.
 
 * Assign heavier weights to **return/effect** lexemes by duplicating them into higher-weighted sub-`tsvector`s if needed; a simpler v1: keep one column and apply **secondary ordering**:
 
@@ -245,13 +262,13 @@ Queries possible:
    * Parse MoonBit signatures → `signature_jsonb` (already available in project).
    * Walk AST to collect mentions, vars, effects, arity.
    * Normalize → set of lexemes (Text).
-   * Build `tsvector` literal and `UPDATE defs SET type_lex = ...` in batches.
+   * Build `tsvector` literal and `UPDATE defs SET tokens = ...` in batches.
 2. **Search API**
 
    * Request → parsed filters (paths/effects/patterns/arity).
    * Normalize inputs (lowercase, reverse paths).
    * Compose `tsquery` string(s).
-   * `SELECT ... FROM defs WHERE type_lex @@ to_tsquery($1) ORDER BY rank ... LIMIT/OFFSET`.
+   * `SELECT ... FROM defs WHERE tokens @@ to_tsquery($1) ORDER BY rank ... LIMIT/OFFSET`.
 3. **Tests**
 
    * Golden tests: signature → lexeme set.

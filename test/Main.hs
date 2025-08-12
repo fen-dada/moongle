@@ -30,17 +30,16 @@ runMigrations = EP.withTransaction $ do
   _ <- EP.execute_
     "CREATE TABLE IF NOT EXISTS defs ( \
     \ def_id bigserial PRIMARY KEY, \
-    \ pkg_owner   text NOT NULL, \
-    \ pkg_name    text NOT NULL, \
+    \ username text NOT NULL, \
+    \ mod    text NOT NULL, \
+    \ pkg_path text[] NOT NULL, \
     \ pkg_version text NOT NULL, \
-    \ mod_user    text NOT NULL, \
-    \ mod_name    text NOT NULL, \
-    \ mod_pkg_path text[] NOT NULL, \
     \ fun_name    text NOT NULL, \
     \ pretty_sig  text NOT NULL, \
     \ visibility  text NOT NULL, \
     \ kind        text NOT NULL, \
     \ tokens_lex  text[] NOT NULL, \
+    \ tokens      tsvector NOT NULL, \
     \ arity int NOT NULL, \
     \ has_async boolean NOT NULL, \
     \ may_raise boolean NOT NULL, \
@@ -48,29 +47,12 @@ runMigrations = EP.withTransaction $ do
     \ src_file text, src_line int, src_col int \
     \ )"
 
-  _ <- EP.execute_ "DROP FUNCTION IF EXISTS my_array_to_string(ANYARRAY, TEXT);"
-  _ <- EP.execute_ "CREATE FUNCTION my_array_to_string(arr ANYARRAY, sep TEXT) RETURNS text LANGUAGE SQL IMMUTABLE AS 'SELECT array_to_string(arr, sep)';"
-  _ <- EP.execute_ "ALTER TABLE defs DROP COLUMN IF EXISTS tokens"
-  _ <- EP.execute_
-    "ALTER TABLE defs \
-    \  ADD COLUMN tokens tsvector GENERATED ALWAYS AS \
-    \    (to_tsvector('simple'::regconfig, my_array_to_string(tokens_lex,' '))) STORED"
-
-  -- 3) 索引
+  -- gin index on tokens
   _ <- EP.execute_ "CREATE INDEX IF NOT EXISTS defs_tokens_gin ON defs USING gin (tokens)"
-  _ <- EP.execute_ "CREATE INDEX IF NOT EXISTS defs_pkg ON defs (pkg_owner, pkg_name, pkg_version)"
+  _ <- EP.execute_ "CREATE INDEX IF NOT EXISTS defs_pkg ON defs (username, mod, pkg_version)"
 
   logInfo_ "Migrations done."
   pure ()
-
--- main :: IO ()
--- main = do
---   raw <- BL.readFile "0.2.0.zip"
---   let result = unZip raw
---   case result of
---     Left err -> putStrLn $ "Error: " ++ show err
---     Right fs -> do
---       print $ fst <$> fs
 
 makeTestConfig :: (FileSystem :> es) => Eff es Config
 makeTestConfig = do
