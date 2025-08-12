@@ -65,4 +65,6 @@ npm run lint
 
 ## TODO
 - [x]自动构建wasm文件
+- []字体候选
+- []header宽度
 - []web-tree-sitter版本更新时自动重编译
