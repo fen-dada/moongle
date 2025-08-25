@@ -41,3 +41,8 @@ the content looks like this:
   },
 ]
 ```
+
+## Todo
+
+- define a Custom `MoongleQuery` effect using effectful and interpret it into low level effects
+- improve performance using `async`
