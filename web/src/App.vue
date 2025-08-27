@@ -133,28 +133,29 @@ body {
   transition: background-color 0.3s; /* Add this line */
 }
 .app-header {
-  /* This is the full-width background bar */
   position: fixed;
   top: 0;
   left: 0;
   z-index: 1000;
   width: 100%;
   background-color: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
   transition: background-color 0.3s, border-color 0.3s;
-  display: flex;
-  justify-content: center;
 }
+
 .header-content {
-  /* This is the centered container for the content */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
-  max-width: 1400px; /* Adjust max-width as needed */
+  width: 100%;          /* 占满整行 */
+  max-width: none;      /* 删掉 1400px 限制 */
+  margin: 0;            /* 去掉左右 auto 居中 */
+  padding: 0 32px;      /* 固定左右边距（你可以改成 16px/32px） */
   height: 64px;
-  padding: 0 2rem;
   box-sizing: border-box;
 }
+
+
 .header-left {
   display: flex;
   align-items: center;
