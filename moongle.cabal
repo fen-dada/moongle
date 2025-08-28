@@ -75,6 +75,8 @@ library
         Moongle.DB
         Moongle.DB.Types
         Moongle.DB.Index
+        Moongle.CLI
+        Moongle.App
 
     -- Modules included in this library but not exported.
     other-modules:
@@ -88,7 +90,7 @@ library
         language-moonbit,
         text,
         vector,
-        optparse-generic,
+        optparse-applicative,
         aeson,
         lens,
         lens-aeson,
