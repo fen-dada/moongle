@@ -1,6 +1,14 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Moongle.CLI (args) where
+module Moongle.CLI
+  ( args,
+    Cmd (..),
+    UpdateOpts (..),
+    ServeOpts (..),
+    Opts (..),
+    SearchOpts (..),
+  )
+where
 
 import Effectful
 import GHC.Generics

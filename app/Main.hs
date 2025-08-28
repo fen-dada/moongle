@@ -1,5 +1,6 @@
 module Main where
 
+import Moongle.App qualified as Moongle
+
 main :: IO ()
-main = do
-  putStrLn "Hello, Haskell!"
+main = Moongle.main

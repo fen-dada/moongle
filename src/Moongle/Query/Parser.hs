@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Unused LANGUAGE pragma" #-}
-module Moongle.Query.Parser where
+module Moongle.Query.Parser (pQuery, string2Query) where
 
 import Data.Functor
 import Language.Moonbit.Lexer
@@ -11,6 +11,7 @@ import Language.Moonbit.Mbti.Syntax
 import Moongle.Query.Syntax
 import Text.Parsec
 import Text.Parsec.Text.Lazy (Parser)
+import Data.Text.Lazy (pack)
 
 -- >>> parse pTyQuery "" "async [K : Compare, V](K, V) -> Int raise E"
 -- Right (TyQuery (TypeQuery {queryTyParams = [(TCon "K" [],[CTrait (TTrait Nothing "Compare")]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffAsync,EffException (Araise (TName Nothing (TCon "E" [])))]}))
@@ -42,3 +43,6 @@ pNmQuery = do
 
 pQuery :: Parser Query
 pQuery = try pTyQuery <|> pNmQuery
+
+string2Query :: String -> Either ParseError Query
+string2Query s = parse pQuery "" $ pack s

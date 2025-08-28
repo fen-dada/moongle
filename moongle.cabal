@@ -86,6 +86,7 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:    
+        log-base,
         base,
         language-moonbit,
         text,
