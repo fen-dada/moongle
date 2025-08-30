@@ -4,15 +4,11 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    deploy-rs.url = "github:serokell/deploy-rs";
   };
 
   outputs = inputs @ {
     flake-parts,
-    rust-overlay,
     ...
   }:
     flake-parts.lib.mkFlake {inherit inputs;} {
@@ -30,7 +26,7 @@
         system,
         ...
       }: let
-        packages = with pkgs; [
+        devPkgs = with pkgs; [
           cmake
           ninja
           gnumake
@@ -50,10 +46,30 @@
           elmPackages.elm-review
           elmPackages.elm-live
           elmPackages.nodejs
-
         ];
 
-        env = {
+        hsPkgs = pkgs.haskell.packages.ghc912;
+        moongle-backend = hsPkgs.callCabal2nix "moongle-backend" ./. {};
+        moongle-frontend = pkgs.buildNpmPackage {
+          pname = "moongle-frontend";
+          version = "0.1.0";
+          src = ./web;
+
+          npmDepsHash = "sha256-ak/d2p20p+bT2iDl4JEbdLlZuo03iwLJeXFOT0//Sy0=";
+
+          nativeBuildInputs = with pkgs; [
+            tree-sitter
+          ];
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out
+            cp -r dist/* $out/
+            runHook postInstall
+          '';
+        };
+
+        devEnv = {
           # NODE_OPTIONS = "--openssl-legacy-provider";
           # CHOKIDAR_USEPOLLING = 1;
         };
@@ -62,13 +78,21 @@
           inherit system;
           config = {};
         };
+
+        packages = {
+          inherit moongle-backend moongle-frontend;
+          default = moongle-backend;
+        };
+
         devShells = {
           default = pkgs.mkShell {
-            inherit packages env;
+            env = devEnv;
+            packages = devPkgs;
           };
 
           clang = pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} {
-            inherit packages env;
+            env = devEnv;
+            packages = devPkgs;
           };
         };
       };
