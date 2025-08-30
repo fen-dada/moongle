@@ -1,7 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Moongle.App(main) where
+module Moongle.App (main) where
 
 import Control.Exception
 import Control.Lens
@@ -23,10 +23,10 @@ import Moongle.Config
 import Moongle.DB
 import Moongle.Env
 import Moongle.Query
-import Moongle.Query.Parser (string2Query)
+import Moongle.Query.Parser (text2Query)
 import Moongle.Registry hiding (opts)
 import Moongle.Server (server)
-import System.FilePath
+import System.Exit
 
 main :: IO ()
 main = do
@@ -34,34 +34,44 @@ main = do
   (cmd, cliOpts) <- runEff args
 
   -- build Config (needs FileSystem to get $HOME)
-  config <- runEff $ runFileSystem $ genConfig cliOpts
-
-  -- connect to Postgres (keep parity with your test: host + dbname)
-  bracket
-    ( PSQL.connectPostgreSQL
-        ( "host="
-            <> encodeUtf8 (config ^. Moongle.Config.dbHost)
-            <> " dbname="
-            <> encodeUtf8 (config ^. Moongle.Config.dbName)
+  econfig <- runEff $ runFileSystem $ runErrorNoCallStack $ genConfig cliOpts
+  case econfig of
+    Left err -> do
+      putStrLn $ "Configuration error: " ++ err
+      exitFailure
+    Right config -> do
+      -- connect to Postgres
+      bracket
+        ( PSQL.connectPostgreSQL
+            ( "host="
+                <> encodeUtf8 (config ^. Moongle.Config.dbHost)
+                <> " port="
+                <> encodeUtf8 (T.pack (show (config ^. Moongle.Config.dbPort)))
+                <> " dbname="
+                <> encodeUtf8 (config ^. Moongle.Config.dbName)
+                <> " user="
+                <> encodeUtf8 (config ^. Moongle.Config.dbUser)
+                <> " password="
+                <> encodeUtf8 (config ^. Moongle.Config.dbPassword)
+            )
         )
-    )
-    PSQL.close
-    \conn -> do
-      -- run the effect stack and dispatch on the command
-      result <- runEff $
-        withStdOutLogger \stdoutLogger ->
-          runErrorNoCallStack $
-            runLog "moongle" stdoutLogger defaultLogLevel $
-              runReader config $
-                runWreq $
-                  EP.runWithConnection conn $
-                    runFileSystem $
-                      runConcurrent $
-                        app cmd
+        PSQL.close
+        \conn -> do
+          -- run the effect stack and dispatch on the command
+          result <- runEff $
+            withStdOutLogger \stdoutLogger ->
+              runErrorNoCallStack $
+                runLog "moongle" stdoutLogger defaultLogLevel $
+                  runReader config $
+                    runWreq $
+                      EP.runWithConnection conn $
+                        runFileSystem $
+                          runConcurrent $
+                            app cmd
 
-      case result of
-        Left err -> putStrLn $ "Error: " <> err
-        Right _ -> pure ()
+          case result of
+            Left err -> putStrLn $ "Error: " <> err
+            Right _ -> pure ()
 
 appUpdate :: (Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, Wreq :> es, IOE :> es, EP.WithConnection :> es) => UpdateOpts -> Eff es ()
 appUpdate _o = do
@@ -78,7 +88,7 @@ appServe _o = do
 
 appSearch :: (Error String :> es, Log :> es, Reader Config :> es, IOE :> es, EP.WithConnection :> es) => SearchOpts -> Eff es ()
 appSearch (SearchOpts str l) = do
-  q <- either (\e -> throwError ("Failed to parse query: " ++ show e)) pure (string2Query str)
+  q <- either (\e -> throwError ("Failed to parse query: " ++ show e)) pure (text2Query str)
   result <- queryDefSummary q
   liftIO $ print (take l result)
 
@@ -87,21 +97,3 @@ app = \case
   Update o -> appUpdate o
   Serve o -> appServe o
   Search o -> appSearch o
-
--- | Build a Config from CLI Opts (pure defaults + $HOME/.moongle).
-genConfig :: (FileSystem :> es) => Opts -> Eff es Config
-genConfig (Opts {configPath = _cfg, dbHost, dbName}) = do
-  homeDir <- getHomeDirectory
-  let storagePath = homeDir </> ".moongle"
-  pure
-    Config
-      { _registryUrl = "https://mooncakes.io/assets/modules.json",
-        _moongleStoragePath = T.pack storagePath,
-        _mooncakesBaseUrl = "https://moonbitlang-mooncakes.s3.us-west-2.amazonaws.com/user",
-        _parallel = 32,
-        _dbHost = T.pack dbHost,
-        _dbPort = 5432,
-        _dbName = T.pack dbName,
-        _dbUser = "postgres",
-        _dbPassword = ""
-      }

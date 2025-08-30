@@ -116,6 +116,7 @@ library
         effectful-opaleye,
         effectful-postgresql,
         postgresql-simple,
+        data-default,
 
     -- Directories containing source files.
     hs-source-dirs:   src

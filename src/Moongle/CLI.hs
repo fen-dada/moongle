@@ -1,4 +1,6 @@
+-- TODO: Rewrite using optparse-generic
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Moongle.CLI
   ( args,
@@ -10,6 +12,7 @@ module Moongle.CLI
   )
 where
 
+import Data.Text (Text)
 import Effectful
 import GHC.Generics
 import Options.Applicative
@@ -17,17 +20,17 @@ import Options.Applicative
 data Cmd = Update UpdateOpts | Serve ServeOpts | Search SearchOpts
   deriving (Show, Generic)
 
-data UpdateOpts = UpdateOpts {url :: String, jobs :: Int}
+data UpdateOpts = UpdateOpts {url :: Text, jobs :: Int}
   deriving (Show, Generic)
 
-data ServeOpts = ServeOpts {host :: String, port :: Int}
+data ServeOpts = ServeOpts {host :: Text, port :: Int}
   deriving (Show, Generic)
 
-data Opts = Opts {configPath :: FilePath, dbHost :: String, dbName :: String}
+data Opts = Opts {configPath :: Maybe FilePath, dbHost :: Maybe Text, dbName :: Maybe Text, dbPort :: Maybe Int, dbUser :: Maybe Text, dbPassword :: Maybe Text}
   deriving (Show, Generic)
 
 data SearchOpts = SearchOpts
-  { query :: String,
+  { query :: Text,
     limit :: Int
   }
   deriving (Show, Generic)
@@ -60,9 +63,12 @@ pSearchOpts =
 pOpts :: Parser Opts
 pOpts =
   Opts
-    <$> strOption (long "config" <> short 'c' <> metavar "CONFIG" <> help "Path to config file" <> value "config.yaml" <> showDefault)
-    <*> strOption (long "db_host" <> metavar "DB_HOST" <> help "Database host" <> value "localhost" <> showDefault)
-    <*> strOption (long "db_name" <> metavar "DB_NAME" <> help "Database name" <> value "postgres" <> showDefault)
+    <$> optional (strOption (long "config" <> short 'c' <> metavar "CONFIG" <> help "Path to config file"))
+    <*> optional (strOption (long "db_host" <> metavar "DB_HOST" <> help "Database host" <> value "localhost" <> showDefault))
+    <*> optional (strOption (long "db_name" <> metavar "DB_NAME" <> help "Database name" <> value "postgres" <> showDefault))
+    <*> optional (option auto (long "db_port" <> metavar "DB_PORT" <> help "Database port" <> value 5432 <> showDefault))
+    <*> optional (strOption (long "db_user" <> metavar "DB_USER" <> help "Database user" <> value "postgres" <> showDefault))
+    <*> optional (strOption (long "db_password" <> metavar "DB_PASSWORD" <> help "Database password" <> value "" <> showDefault))
 
 pArgs :: ParserInfo (Cmd, Opts)
 pArgs = info ((,) <$> pCmd <*> pOpts <**> helper) (header "Moongle - Moonbit API search engine")
