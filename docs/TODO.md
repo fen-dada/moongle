@@ -1,4 +1,4 @@
-# Moongle Architecture
+# Future Refactor
 
 > Goal: Model Moongle’s **search and indexing** logic as a high‑level **domain DSL** and interpret it into a small set of **capability DSLs** (effects). This yields replaceable backends, strong testability, and clear observability while keeping business logic pure and easy to reason about.
 
