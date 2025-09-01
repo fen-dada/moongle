@@ -16,4 +16,4 @@ serverT :: (Reader Env :> es, Error S.ServerError :> es, Log :> es, IOE :> es, W
 serverT = searchHandler S.:<|> statsHandler
 
 server :: (Reader Env :> es, Log :> es, IOE :> es, WithConnection :> es) => Eff es ()
-server = runWarpServerSettings @MoongleAPI Warp.defaultSettings serverT
+server = runWarpServerSettings @MoongleAPI Warp.defaultSettings serverT id

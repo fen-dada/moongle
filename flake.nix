@@ -1,102 +1,41 @@
 {
-  description = "Moongle - Moonbit API Search Engine";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-parts.url = "github:hercules-ci/flake-parts";
-    deploy-rs.url = "github:serokell/deploy-rs";
-  };
-
-  outputs = inputs @ {flake-parts, ...}:
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      systems = [
+  inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
+  inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+  outputs = { self, nixpkgs, flake-utils, haskellNix }:
+    let
+      supportedSystems = [
         "x86_64-linux"
+        "x86_64-darwin"
         "aarch64-linux"
         "aarch64-darwin"
-        "x86_64-darwin"
       ];
-      perSystem = {
-        config,
-        self',
-        inputs',
-        pkgs,
-        system,
-        ...
-      }: let
-        devPkgs = with pkgs; [
-          cmake
-          ninja
-          gnumake
-          zlib
-          postgresql_17
-          pkg-config
-
-          haskell.compiler.ghc912
-          haskell.packages.ghc912.haskell-language-server
-          ormolu
-          cabal-install
-
-          elmPackages.elm
-          elmPackages.elm-format
-          elmPackages.elm-language-server
-          elmPackages.elm-test
-          elmPackages.elm-review
-          elmPackages.elm-live
-          elmPackages.nodejs
+    in
+      flake-utils.lib.eachSystem supportedSystems (system:
+      let
+        overlays = [ haskellNix.overlay
+          (final: _prev: {
+            hixProject =
+              final.haskell-nix.hix.project {
+                src = ./.;
+                # uncomment with your current system for `nix flake show` to work:
+                evalSystem = "x86_64-linux";
+              };
+          })
         ];
+        pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
+        flake = pkgs.hixProject.flake {};
+      in flake // {
+        legacyPackages = pkgs;
+      });
 
-        hsOverlay = final: prev: {
-          haskellPackages = prev.haskell.packages.ghc912.override {
-            overrides = hself: hsuper: {
-              language-moonbit = hself.callCabal2nix "language-moonbit" ./vendor/language-moonbit {};
-              servant-effectful = hself.callCabal2nix "servant-effectful" ./vendor/servant-effectful {};
-
-              postgresql-simple = final.haskell.lib.doJailbreak hsuper.postgresql-simple;
-              wreq-effectful = final.haskell.lib.doJailbreak hsuper.wreq-effectful;
-            };
-          };
-        };
-
-        pkgs = import inputs.nixpkgs {
-          inherit system;
-          overlays = [hsOverlay];
-          config = {};
-        };
-
-        hp = pkgs.haskell.packages.ghc912;
-        moongleRaw = hp.callCabal2nix "moongle" ./. {};
-        moongle =
-          pkgs.haskell.lib.dontCheck
-          (pkgs.haskell.lib.dontHaddock moongleRaw);
-
-        devEnv = {
-          # NODE_OPTIONS = "--openssl-legacy-provider";
-          # CHOKIDAR_USEPOLLING = 1;
-        };
-      in {
-        _module.args.pkgs = pkgs;
-
-        packages = {
-          inherit moongle;
-          default = moongle;
-        };
-
-        apps.moongle = {
-          type = "app";
-          program = "${moongle}/bin/moongle";
-        };
-
-        devShells = {
-          default = pkgs.mkShell {
-            env = devEnv;
-            packages = devPkgs;
-          };
-
-          clang = pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} {
-            env = devEnv;
-            packages = devPkgs;
-          };
-        };
-      };
-    };
+  # --- Flake Local Nix Configuration ----------------------------
+  nixConfig = {
+    # This sets the flake to use the IOG nix cache.
+    # Nix should ask for permission before using it,
+    # but remove it here if you do not want it to.
+    extra-substituters = ["https://cache.iog.io"];
+    extra-trusted-public-keys = ["hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ="];
+    allow-import-from-derivation = "true";
+  };
 }
