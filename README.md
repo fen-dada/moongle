@@ -31,8 +31,12 @@ Prerequisites:
 - Moonbit toolchain installed (to provide core library at `~/.moon/lib/core`)
 
 Build:
-- Cabal: `cabal build all`
-- Nix (optional): `nix develop` then `cabal build all`
+- Cabal: `cabal build moongle:exe:moongle`
+- Nix: `nix build .#moongle:exe:moongle`
+
+Run:
+- Cabal: `cabal run moongle:exe:moongle`
+- Nix: `nix run .#moongle:exe:moongle`
 
 ## Configuration
 
