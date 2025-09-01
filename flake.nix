@@ -1,5 +1,5 @@
 {
-  description = "My flake template";
+  description = "Moongle - Moonbit API Search Engine";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -7,10 +7,7 @@
     deploy-rs.url = "github:serokell/deploy-rs";
   };
 
-  outputs = inputs @ {
-    flake-parts,
-    ...
-  }:
+  outputs = inputs @ {flake-parts, ...}:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = [
         "x86_64-linux"
@@ -48,40 +45,45 @@
           elmPackages.nodejs
         ];
 
-        hsPkgs = pkgs.haskell.packages.ghc912;
-        moongle-backend = hsPkgs.callCabal2nix "moongle-backend" ./. {};
-        moongle-frontend = pkgs.buildNpmPackage {
-          pname = "moongle-frontend";
-          version = "0.1.0";
-          src = ./web;
+        hsOverlay = final: prev: {
+          haskellPackages = prev.haskell.packages.ghc912.override {
+            overrides = hself: hsuper: {
+              language-moonbit = hself.callCabal2nix "language-moonbit" ./vendor/language-moonbit {};
+              servant-effectful = hself.callCabal2nix "servant-effectful" ./vendor/servant-effectful {};
 
-          npmDepsHash = "sha256-ak/d2p20p+bT2iDl4JEbdLlZuo03iwLJeXFOT0//Sy0=";
-
-          nativeBuildInputs = with pkgs; [
-            tree-sitter
-          ];
-
-          installPhase = ''
-            runHook preInstall
-            mkdir -p $out
-            cp -r dist/* $out/
-            runHook postInstall
-          '';
+              postgresql-simple = final.haskell.lib.doJailbreak hsuper.postgresql-simple;
+              wreq-effectful = final.haskell.lib.doJailbreak hsuper.wreq-effectful;
+            };
+          };
         };
+
+        pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [hsOverlay];
+          config = {};
+        };
+
+        hp = pkgs.haskell.packages.ghc912;
+        moongleRaw = hp.callCabal2nix "moongle" ./. {};
+        moongle =
+          pkgs.haskell.lib.dontCheck
+          (pkgs.haskell.lib.dontHaddock moongleRaw);
 
         devEnv = {
           # NODE_OPTIONS = "--openssl-legacy-provider";
           # CHOKIDAR_USEPOLLING = 1;
         };
       in {
-        _module.args.pkgs = import inputs.nixpkgs {
-          inherit system;
-          config = {};
-        };
+        _module.args.pkgs = pkgs;
 
         packages = {
-          inherit moongle-backend moongle-frontend;
-          default = moongle-backend;
+          inherit moongle;
+          default = moongle;
+        };
+
+        apps.moongle = {
+          type = "app";
+          program = "${moongle}/bin/moongle";
         };
 
         devShells = {
