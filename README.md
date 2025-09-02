@@ -1,9 +1,5 @@
 # Moongle
 
-Moonbit API search engine
-
-![Alt](https://repobeats.axiom.co/api/embed/1b89702cbea6a0cfd0b04409ed3abee5e8d0d2ec.svg "Repobeats analytics image")
-
 Moongle indexes Moonbit packages and provides fast, structure-aware search by name or type. It exposes a CLI and an HTTP API backed by PostgreSQL full‑text search.
 
 - Name search: by symbol or fully qualified path
@@ -155,5 +151,6 @@ Experimental UIs
 - Elm prototype: `elm/`
 
 ## License
-
 MIT. See `LICENSE`.
+
+![Alt](https://repobeats.axiom.co/api/embed/1b89702cbea6a0cfd0b04409ed3abee5e8d0d2ec.svg "Repobeats analytics image")
