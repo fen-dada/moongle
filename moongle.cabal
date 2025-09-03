@@ -115,6 +115,7 @@ library
         effectful-postgresql,
         postgresql-simple,
         data-default,
+        HsYAML-aeson,
 
     -- Directories containing source files.
     hs-source-dirs:   src

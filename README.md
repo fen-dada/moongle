@@ -36,9 +36,9 @@ Run:
 
 ## Configuration
 
-At runtime Moongle composes configuration from defaults, `~/.config/moongle/config.yaml` (JSON content), and CLI flags.
+At runtime Moongle composes configuration from defaults, `~/.config/moongle/config.yaml` and CLI flags.
 
-Supported keys (JSON via Aeson):
+Supported keys:
 - registryUrl: string (default: https://mooncakes.io/assets/modules.json)
 - mooncakesBaseUrl: string (default: https://moonbitlang-mooncakes.s3.us-west-2.amazonaws.com/user)
 - moongleStoragePath: string (by default `~/.moongle` is used)
