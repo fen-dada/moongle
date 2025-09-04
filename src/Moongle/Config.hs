@@ -27,6 +27,7 @@ data Config = Config
   , _mooncakesBaseUrl :: Text
   , _moongleStoragePath :: Text
   , _parallel :: Int
+  , _retryCount :: Int
   , _dbHost :: Text
   , _dbPort :: Int
   , _dbName :: Text
@@ -43,10 +44,11 @@ instance FromJSON Config where
 instance Default Config where
   def =
     Config
-      { _registryUrl = "https://mooncakes.io/assets/modules.json"
+      { _registryUrl = "mooncakes.io"
       , _moongleStoragePath = ""
-      , _mooncakesBaseUrl = "https://moonbitlang-mooncakes.s3.us-west-2.amazonaws.com/user"
+      , _mooncakesBaseUrl = "moonbitlang-mooncakes.s3.us-west-2.amazonaws.com"
       , _parallel = 32
+      , _retryCount = 3
       , _dbHost = "localhost"
       , _dbPort = 5432
       , _dbName = "postgres"
@@ -59,6 +61,7 @@ data PartialConfig = PartialConfig
   , _mooncakesBaseUrlP :: Maybe Text
   , _moongleStoragePathP :: Maybe Text
   , _parallelP :: Maybe Int
+  , _retryCountP :: Maybe Int
   , _dbHostP :: Maybe Text
   , _dbPortP :: Maybe Int
   , _dbNameP :: Maybe Text
@@ -79,6 +82,7 @@ instance Semigroup PartialConfig where
       , _mooncakesBaseUrlP = a ^. mooncakesBaseUrlP <|> b ^. mooncakesBaseUrlP
       , _moongleStoragePathP = a ^. moongleStoragePathP <|> b ^. moongleStoragePathP
       , _parallelP = a ^. parallelP <|> b ^. parallelP
+      , _retryCountP = a ^. retryCountP <|> b ^. retryCountP
       , _dbHostP = a ^. dbHostP <|> b ^. dbHostP
       , _dbPortP = a ^. dbPortP <|> b ^. dbPortP
       , _dbNameP = a ^. dbNameP <|> b ^. dbNameP
@@ -93,6 +97,7 @@ instance Monoid PartialConfig where
       , _mooncakesBaseUrlP = Nothing
       , _moongleStoragePathP = Nothing
       , _parallelP = Nothing
+      , _retryCountP = Nothing
       , _dbHostP = Nothing
       , _dbPortP = Nothing
       , _dbNameP = Nothing
@@ -124,6 +129,7 @@ optsToPartial (CLI.Opts _cfg host name port user password) =
     , _mooncakesBaseUrlP = Nothing
     , _moongleStoragePathP = Nothing
     , _parallelP = Nothing
+    , _retryCountP = Nothing
     }
 
 -- | Build a Config from CLI Opts (pure defaults + $HOME/.moongle).

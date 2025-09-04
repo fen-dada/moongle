@@ -97,7 +97,6 @@ library
         lens-aeson,
         effectful,
         filepath,
-        wreq-effectful,
         bytestring,
         tar,
         zlib,
@@ -116,6 +115,7 @@ library
         postgresql-simple,
         data-default,
         HsYAML-aeson,
+        http-client-tls,
 
     -- Directories containing source files.
     hs-source-dirs:   src

@@ -34,16 +34,16 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
       let res = SearchRes (length hits) hits
       logInfo_ $ "Search query: " <> qt <> ", found " <> T.pack (show (length hits)) <> " results"
       pure $ ApiResponse "ok" (Just res) Nothing
-  where
-    defSummaryToSearchHit :: DefSummary -> SearchHit
-    defSummaryToSearchHit DefSummary {..} =
-      SearchHit
-        { user = username,
-          mod = mod,
-          package = package,
-          decl = prettySig,
-          score = 0
-        }
+ where
+  defSummaryToSearchHit :: DefSummary -> SearchHit
+  defSummaryToSearchHit DefSummary{..} =
+    SearchHit
+      { user = username
+      , mod = mod
+      , package = package
+      , decl = prettySig
+      , score = 0
+      }
 
 statsHandler :: (Log :> es, Reader Env :> es, WithConnection :> es, IOE :> es) => Eff es (ApiResponse Stats)
 statsHandler = do
@@ -51,5 +51,5 @@ statsHandler = do
   let decls = fromIntegral decls'
   let modules = fromIntegral modules'
   logInfo_ $ "Stats query: " <> T.pack (show decls) <> " defs, " <> T.pack (show modules) <> " packages"
-  Env lastIndexed <- ask @Env
-  pure $ ApiResponse "ok" (Just $ Stats {..}) Nothing
+  Env{lastIndexed} <- ask @Env
+  pure $ ApiResponse "ok" (Just $ Stats{..}) Nothing

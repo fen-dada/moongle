@@ -1,8 +1,8 @@
 module Moongle.Env where
 
 import Data.Time (UTCTime)
+import Network.HTTP.Client
 
 -- | The running environment for Moongle.
-newtype Env = Env {lastUpdate :: UTCTime}
-  deriving (Show, Eq)
+data Env = Env {lastIndexed :: UTCTime, httpManager :: Manager}
 

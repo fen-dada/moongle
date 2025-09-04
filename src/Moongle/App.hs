@@ -16,7 +16,6 @@ import Effectful.FileSystem
 import Effectful.Log
 import Effectful.PostgreSQL as EP
 import Effectful.Reader.Static
-import Effectful.Wreq
 import Log.Backend.StandardOutput
 import Moongle.CLI
 import Moongle.Config
@@ -24,8 +23,10 @@ import Moongle.DB
 import Moongle.Env
 import Moongle.Query
 import Moongle.Query.Parser (text2Query)
-import Moongle.Registry hiding (opts)
+import Moongle.Registry
 import Moongle.Server (server)
+import Network.HTTP.Client (newManager)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Exit
 
 main :: IO ()
@@ -40,7 +41,7 @@ main = do
       putStrLn $ "Configuration error: " ++ err
       exitFailure
     Right config -> do
-      -- connect to Postgres
+      env <- mkEnv config
       bracket
         ( PSQL.connectPostgreSQL
             ( "host="
@@ -63,7 +64,7 @@ main = do
               runErrorNoCallStack $
                 runLog "moongle" stdoutLogger defaultLogLevel $
                   runReader config $
-                    runWreq $
+                    runReader env $
                       EP.runWithConnection conn $
                         runFileSystem $
                           runConcurrent $
@@ -73,7 +74,7 @@ main = do
             Left err -> putStrLn $ "Error: " <> err
             Right _ -> pure ()
 
-appUpdate :: (Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, Wreq :> es, IOE :> es, EP.WithConnection :> es) => UpdateOpts -> Eff es ()
+appUpdate :: (Reader Env :> es, Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, IOE :> es, EP.WithConnection :> es) => UpdateOpts -> Eff es ()
 appUpdate _o = do
   runMigrations
   fetchAllPackages
@@ -81,19 +82,24 @@ appUpdate _o = do
   _s <- insertMbtiToDB mbtis
   pure ()
 
-appServe :: (Error String :> es, Log :> es, IOE :> es, EP.WithConnection :> es) => ServeOpts -> Eff es ()
+appServe :: (Reader Env :> es, Reader Config :> es, Error String :> es, Log :> es, IOE :> es, EP.WithConnection :> es) => ServeOpts -> Eff es ()
 appServe _o = do
-  utcNow <- liftIO getCurrentTime
-  runReader (Env utcNow) server
+  server
 
-appSearch :: (Error String :> es, Log :> es, Reader Config :> es, IOE :> es, EP.WithConnection :> es) => SearchOpts -> Eff es ()
+appSearch :: (Error String :> es, Log :> es, Reader Config :> es, Reader Env :> es, IOE :> es, EP.WithConnection :> es) => SearchOpts -> Eff es ()
 appSearch (SearchOpts str l) = do
   q <- either (\e -> throwError ("Failed to parse query: " ++ show e)) pure (text2Query str)
   result <- queryDefSummary q
   liftIO $ print (take l result)
 
-app :: (Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, Wreq :> es, IOE :> es, EP.WithConnection :> es) => Cmd -> Eff es ()
+app :: (Reader Env :> es, Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, IOE :> es, EP.WithConnection :> es) => Cmd -> Eff es ()
 app = \case
   Update o -> appUpdate o
   Serve o -> appServe o
   Search o -> appSearch o
+
+mkEnv :: config -> IO Env
+mkEnv _c = do
+  utcNow <- getCurrentTime
+  manager <- newManager tlsManagerSettings
+  pure $ Env utcNow manager
