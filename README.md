@@ -45,7 +45,7 @@ Supported keys:
 - parallel: number (default: 32)
 - dbHost, dbPort, dbName, dbUser, dbPassword
 
-Example `~/.config/moongle/config.yaml` (JSON):
+Example `~/.config/moongle/config.yaml`:
 ```yaml
 dbHost: localhost
 dbName: postgres
@@ -67,7 +67,7 @@ Notes:
 
 ## Running the server
 
-- Start HTTP API: `moongle serve -h 0.0.0.0 -p 8080`
+- Start HTTP API: `moongle serve -h 0.0.0.0 -p 8080` (defaults to 0.0.0.0:3000)
 - Default base path: `/api`
 
 ## CLI usage
