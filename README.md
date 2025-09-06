@@ -46,16 +46,14 @@ Supported keys:
 - dbHost, dbPort, dbName, dbUser, dbPassword
 
 Example `~/.config/moongle/config.yaml` (JSON):
+```yaml
+dbHost: localhost
+dbName: postgres
+dbPassword: "0528"
+dbUser: hank
+parallel: 32
 ```
-{
-  "dbHost": "localhost",
-  "dbPort": 5432,
-  "dbName": "postgres",
-  "dbUser": "postgres",
-  "dbPassword": "",
-  "parallel": 32
-}
-```
+
 CLI flags override config: `--db_host`, `--db_port`, `--db_name`, `--db_user`, `--db_password`, `--config`.
 
 ## Indexing data
