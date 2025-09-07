@@ -14,10 +14,10 @@ import Effectful.Concurrent
 import Effectful.Error.Static
 import Effectful.FileSystem
 import Effectful.Log
-import Effectful.PostgreSQL as EP
+import Effectful.PostgreSQL as EP hiding (query)
 import Effectful.Reader.Static
 import Log.Backend.StandardOutput
-import Moongle.CLI
+import Moongle.CLI hiding (query)
 import Moongle.Config
 import Moongle.DB
 import Moongle.Env
@@ -88,8 +88,7 @@ appServe o = do
 
 appSearch :: (Error String :> es, Log :> es, Reader Config :> es, Reader Env :> es, IOE :> es, EP.WithConnection :> es) => SearchOpts -> Eff es ()
 appSearch (SearchOpts str l) = do
-  q <- either (\e -> throwError ("Failed to parse query: " ++ show e)) pure (text2Query str)
-  result <- queryDefSummary q
+  result <- query str
   liftIO $ print (take l result)
 
 app :: (Reader Env :> es, Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, IOE :> es, EP.WithConnection :> es) => Cmd -> Eff es ()
