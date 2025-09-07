@@ -23,7 +23,7 @@ data Cmd = Update UpdateOpts | Serve ServeOpts | Search SearchOpts
 data UpdateOpts = UpdateOpts {url :: Text, jobs :: Int}
   deriving (Show, Generic)
 
-data ServeOpts = ServeOpts {host :: Text, port :: Int}
+data ServeOpts = ServeOpts {host :: Maybe Text, port :: Maybe Int}
   deriving (Show, Generic)
 
 data Opts = Opts {configPath :: Maybe FilePath, dbHost :: Maybe Text, dbName :: Maybe Text, dbPort :: Maybe Int, dbUser :: Maybe Text, dbPassword :: Maybe Text}
@@ -51,8 +51,8 @@ pUpdateOpts =
 pServeOpts :: Parser ServeOpts
 pServeOpts =
   ServeOpts
-    <$> strOption (long "host" <> short 'h' <> metavar "HOST" <> help "Host to bind" <> value "0.0.0.0" <> showDefault)
-    <*> option auto (long "port" <> short 'p' <> metavar "PORT" <> help "Port to bind" <> value 8080 <> showDefault)
+    <$> optional (strOption (long "host" <> short 'h' <> metavar "HOST" <> help "Host to bind"))
+    <*> optional (option auto (long "port" <> short 'p' <> metavar "PORT" <> help "Port to bind"))
 
 pSearchOpts :: Parser SearchOpts
 pSearchOpts =

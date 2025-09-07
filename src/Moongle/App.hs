@@ -83,8 +83,8 @@ appUpdate _o = do
   pure ()
 
 appServe :: (Reader Env :> es, Reader Config :> es, Error String :> es, Log :> es, IOE :> es, EP.WithConnection :> es) => ServeOpts -> Eff es ()
-appServe _o = do
-  server
+appServe o = do
+  server o
 
 appSearch :: (Error String :> es, Log :> es, Reader Config :> es, Reader Env :> es, IOE :> es, EP.WithConnection :> es) => SearchOpts -> Eff es ()
 appSearch (SearchOpts str l) = do
