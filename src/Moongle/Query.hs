@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Moongle.Query where
 
-import Data.List (elemIndex)
 import Control.Lens
 import Control.Monad
+import Data.Int (Int64)
+import Data.List (elemIndex)
 import Data.Maybe
-import Data.Text qualified as T
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Effectful
 import Effectful.Error.Static
@@ -21,12 +24,13 @@ import Language.Moonbit.Mbti.Syntax
 import Moongle.Config
 import Moongle.DB
 import Moongle.DB.Index
+import Moongle.Query.Parser (text2NmQuery, text2Query, text2TyQuery)
 import Moongle.Query.Syntax
 import Moongle.Registry (PackageId (..))
+import Moongle.Server.Types (SearchHit (..))
 import Moongle.TypeSearch
 import System.FilePath
 import Prelude hiding (readFile)
-import Data.Int (Int64)
 
 collectMbtiFiles :: (FileSystem :> es, Reader Config :> es) => Eff es [FilePath]
 collectMbtiFiles = do
@@ -37,17 +41,17 @@ collectMbtiFiles = do
   coreMbtiPaths <- go corePath
   mbtiPaths <- go $ T.unpack lp
   pure $ coreMbtiPaths ++ mbtiPaths
-  where
-    go :: (FileSystem :> es) => FilePath -> Eff es [FilePath]
-    go fp = do
-      isDir <- doesDirectoryExist fp
-      if isDir
-        then do
-          entries <- listDirectory fp
-          let subPaths = [fp </> e | e <- entries, e /= "." && e /= ".."]
-          concat <$> traverse go subPaths
-        else
-          pure [fp | takeExtension fp == ".mbti"]
+ where
+  go :: (FileSystem :> es) => FilePath -> Eff es [FilePath]
+  go fp = do
+    isDir <- doesDirectoryExist fp
+    if isDir
+      then do
+        entries <- listDirectory fp
+        let subPaths = [fp </> e | e <- entries, e /= "." && e /= ".."]
+        concat <$> traverse go subPaths
+      else
+        pure [fp | takeExtension fp == ".mbti"]
 
 parseAllMbti :: (Reader Config :> es, FileSystem :> es, Log :> es, Error String :> es) => Eff es [MbtiFile]
 parseAllMbti = do
@@ -78,23 +82,24 @@ parseAllMbti = do
 parsePkgIdFromPath :: FilePath -> Maybe PackageId
 parsePkgIdFromPath fp =
   let dirs = splitDirectories (takeDirectory fp)
-  in case elemIndex "packages" dirs of
-       Just i | i + 2 < length dirs ->
-         let ownerDir    = dirs !! (i + 1)
-             nameVersion = dirs !! (i + 2)      -- e.g. "elk-0.1.0"
-         in case splitNameVersion nameVersion of
-              Just (nm, ver) -> Just (PackageId (t ownerDir) (t nm) (t ver))
-              Nothing        -> Nothing
-       _ -> Nothing
-  where
-    t = T.pack
-    splitNameVersion s =
-      case break (=='-') (reverse s) of
-        (revVer, '-' : revNameRev) ->
-          let ver = reverse revVer
-              nm  = reverse revNameRev
-          in if null nm || null ver then Nothing else Just (nm, ver)
+   in case elemIndex "packages" dirs of
+        Just i
+          | i + 2 < length dirs ->
+              let ownerDir = dirs !! (i + 1)
+                  nameVersion = dirs !! (i + 2) -- e.g. "elk-0.1.0"
+               in case splitNameVersion nameVersion of
+                    Just (nm, ver) -> Just (PackageId (t ownerDir) (t nm) (t ver))
+                    Nothing -> Nothing
         _ -> Nothing
+ where
+  t = T.pack
+  splitNameVersion s =
+    case break (== '-') (reverse s) of
+      (revVer, '-' : revNameRev) ->
+        let ver = reverse revVer
+            nm = reverse revNameRev
+         in if null nm || null ver then Nothing else Just (nm, ver)
+      _ -> Nothing
 
 collectMbtiFilesWithPkg ::
   (FileSystem :> es, Reader Config :> es) =>
@@ -103,15 +108,15 @@ collectMbtiFilesWithPkg = do
   lp <- asks (^. moongleStoragePath)
   let root = T.unpack lp </> "packages"
   go root
-  where
-    go :: (FileSystem :> es) => FilePath -> Eff es [(PackageId, FilePath)]
-    go fp = do
-      isDir <- doesDirectoryExist fp
-      if isDir
-        then do
-          entries <- listDirectory fp
-          concat <$> traverse go [fp </> e | e <- entries, e /= ".", e /= ".."]
-        else pure [(pid, fp) | takeExtension fp == ".mbti", Just pid <- [parsePkgIdFromPath fp]]
+ where
+  go :: (FileSystem :> es) => FilePath -> Eff es [(PackageId, FilePath)]
+  go fp = do
+    isDir <- doesDirectoryExist fp
+    if isDir
+      then do
+        entries <- listDirectory fp
+        concat <$> traverse go [fp </> e | e <- entries, e /= ".", e /= ".."]
+      else pure [(pid, fp) | takeExtension fp == ".mbti", Just pid <- [parsePkgIdFromPath fp]]
 
 parseAllMbtiWithPkg ::
   (Reader Config :> es, FileSystem :> es, Log :> es, Error String :> es) =>
@@ -147,10 +152,10 @@ buildTsQuery = buildTsQueryStrictWith (T.isSuffixOf ".")
 buildTsQueryStrictWith :: (Text -> Bool) -> [Text] -> Text
 buildTsQueryStrictWith shouldPrefix toks =
   T.intercalate " & " (map one toks)
-  where
-    one t =
-      let lit = "'" <> escapeTsqueryLexeme t <> "'"
-      in if shouldPrefix t then lit <> ":*" else lit
+ where
+  one t =
+    let lit = "'" <> escapeTsqueryLexeme t <> "'"
+     in if shouldPrefix t then lit <> ":*" else lit
 
 queryDefSummary :: (WithConnection :> es, Log :> es, IOE :> es) => Query -> Eff es [DefSummary]
 queryDefSummary q = do
@@ -159,9 +164,29 @@ queryDefSummary q = do
   logInfo_ $ "Querying with tsquery: " <> tsq
   selectByTsQuery tsq
 
--- query :: (WithConnection :> es, Log :> es, IOE :> es) => Query -> Eff es QueryResult
--- query q = do
---   logInfo_ $ "Querying: " <> T.pack (show q)
---   defsums <- queryDefSummary q
---
---
+-- core query functions
+
+query :: (WithConnection :> es, Log :> es, IOE :> es, Error String :> es) => Text -> Eff es [SearchHit]
+query t = do
+  q <- either (throwError_ . show) pure (text2Query t)
+  (defSummaryToSearchHit <$>) <$> queryDefSummary q
+
+queryType :: (WithConnection :> es, Log :> es, IOE :> es, Error String :> es) => Text -> Eff es [SearchHit]
+queryType t = do
+  q <- either (throwError_ . show) pure (text2TyQuery t)
+  (defSummaryToSearchHit <$>) <$> queryDefSummary q
+
+queryText :: (WithConnection :> es, Log :> es, IOE :> es, Error String :> es) => Text -> Eff es [SearchHit]
+queryText t = do
+  q <- either (throwError_ . show) pure (text2NmQuery t)
+  (defSummaryToSearchHit <$>) <$> queryDefSummary q
+
+defSummaryToSearchHit :: DefSummary -> SearchHit
+defSummaryToSearchHit DefSummary{..} =
+  SearchHit
+    { user = username
+    , mod = mod
+    , package = package
+    , decl = prettySig
+    , score = 0
+    }

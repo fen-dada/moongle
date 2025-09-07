@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Moongle.Query.Parser (pQuery, text2Query) where
+module Moongle.Query.Parser (pQuery, text2Query, pTyQuery, pNmQuery, text2TyQuery, text2NmQuery) where
 
 import Data.Functor
 import Data.Text qualified as T
@@ -45,3 +45,9 @@ pQuery = try pTyQuery <|> pNmQuery
 
 text2Query :: T.Text -> Either ParseError Query
 text2Query = parse pQuery "" . fromStrict
+
+text2TyQuery :: T.Text -> Either ParseError Query
+text2TyQuery = parse pTyQuery "" . fromStrict
+
+text2NmQuery :: T.Text -> Either ParseError Query
+text2NmQuery = parse pNmQuery "" . fromStrict
