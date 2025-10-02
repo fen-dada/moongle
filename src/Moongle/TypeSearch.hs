@@ -17,13 +17,13 @@ import Data.Text qualified as T
 import Language.Moonbit.Mbti.Syntax
 import Moongle.Query.Syntax
 
--- >>> lexemesForQuery (TyQuery (TypeQuery {queryTyParams = [], queryParams = [AnonParam False (TName Nothing (TCon "Int" []))], queryReturnTy = TName Nothing (TCon "String" []), queryEff = [EffException NoAraise]}))
+-- >>> lexemesForQuery (TyQuery emptyModifiers (TypeQuery {queryTyParams = [], queryParams = [AnonParam False (TName Nothing (TCon "Int" []))], queryReturnTy = TName Nothing (TCon "String" []), queryEff = [EffException NoAraise]}))
 -- ["mn,1,Int.","mn,1,String.","mn,r,String."]
 
--- >>> lexemesForQuery (TyQuery (TypeQuery {queryTyParams = [(TCon "K" [],[CTrait (TTrait Nothing "Compare")]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffAsync,EffException (Araise (TName Nothing (TCon "E" [])))]}))
+-- >>> lexemesForQuery (TyQuery emptyModifiers (TypeQuery {queryTyParams = [(TCon "K" [],[CTrait (TTrait Nothing "Compare")]),(TCon "V" [],[])], queryParams = [AnonParam False (TName Nothing (TCon "K" [])),AnonParam False (TName Nothing (TCon "V" []))], queryReturnTy = TName Nothing (TCon "Int" []), queryEff = [EffAsync,EffException (Araise (TName Nothing (TCon "E" [])))]}))
 -- ["attr,async.","e,E.","mn,1,Int.","v,1,1","v,1,2","mn,r,Int."]
 
--- >>> lexemesForQuery (NmQuery $ NameQuery Nothing $ TCon "insert" [])
+-- >>> lexemesForQuery (NmQuery emptyModifiers $ NameQuery Nothing $ TCon "insert" [])
 -- ["sym,insert."]
 
 tyParamIds :: [(TCon, a)] -> (S.Set Name, M.Map Name Int)
@@ -54,9 +54,9 @@ lexemesForFnDecl mPath decl =
   in sym <> attrs <> mnKs <> mnR
 
 lexemesForQuery :: Query -> [Text]
-lexemesForQuery (NmQuery (NameQuery mp nm)) =
+lexemesForQuery (NmQuery _ (NameQuery mp nm)) =
   [symToken mp nm]
-lexemesForQuery (TyQuery (TypeQuery typs ps ret effs)) =
+lexemesForQuery (TyQuery _ (TypeQuery typs ps ret effs)) =
   let (varNames, idMap) = tyParamIds typs
       mnKs  = mentionKTokens varNames idMap (map paramType ps) ret
       mnR   = mentionRTokens  varNames idMap ret

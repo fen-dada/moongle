@@ -123,6 +123,12 @@ Moongle supports two forms: name queries and type queries.
     - `[K, V](K, V) -> Int`
     - `async [K: Compare, V](K, V) -> Int raise E`
 
+- Package filters (optional, prefix before the query expression)
+  - `pkg:core` — only show results whose `pkg_path` is `core`
+  - `+pkg:collections` behaves the same as `pkg:collections`; repeat to include multiple packages
+  - `-pkg:test` — exclude packages from the results
+  - Filters can be combined with both name and type queries
+
 Matching semantics
 - Structural on types (generic type variables are positionally unified)
 - Name and type components use prefix match on module paths (e.g., `pkg.module.Type`)

@@ -162,7 +162,7 @@ queryDefSummary q = do
   let qlxm = lexemesForQuery q
   let tsq = buildTsQuery qlxm
   logInfo_ $ "Querying with tsquery: " <> tsq
-  selectByTsQuery tsq
+  selectByTsQuery tsq (queryModifiers q)
 
 -- core query functions
 

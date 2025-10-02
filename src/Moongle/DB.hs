@@ -14,15 +14,19 @@ module Moongle.DB
 where
 
 import Data.Int (Int64)
+import Data.List (intercalate)
 import Data.Text (Text)
-import Database.PostgreSQL.Simple (Only (Only), Query)
+import Data.String (fromString)
+import Database.PostgreSQL.Simple (Query)
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.ToRow (ToRow (toRow))
 import Database.PostgreSQL.Simple.Types (PGArray (..))
 import Effectful
 import Effectful.PostgreSQL as EP
 import Effectful.Log
 import Moongle.DB.Types (DefRow (..))
+import Moongle.Query.Syntax (QueryModifiers (..))
 import Moongle.TypeSearch
 
 data DefSummary = DefSummary
@@ -90,17 +94,25 @@ defRowToParams DefRow {..} =
   ]
 
 -- tsquery
-selectByTsQuery :: (WithConnection :> es, IOE :> es) => Text -> Eff es [DefSummary]
-selectByTsQuery tsq = do
-  let sql :: Query
-      sql =
+newtype DynamicParams = DynamicParams [Action]
+
+instance ToRow DynamicParams where
+  toRow (DynamicParams xs) = xs
+
+selectByTsQuery :: (WithConnection :> es, IOE :> es) => Text -> QueryModifiers -> Eff es [DefSummary]
+selectByTsQuery tsq modifiers = do
+  let (filterSql, filterParams) = renderPackageFilters modifiers
+      sqlText =
         "SELECT \
         \  username, \"mod\", pkg_version, pkg_path, \
         \  fun_name, pretty_sig \
         \FROM defs \
-        \WHERE tokens @@ (?::tsquery) \
+        \WHERE tokens @@ (?::tsquery)"
+          <> filterSql
+          <> " \
         \ORDER BY username, mod, fun_name"
-  EP.query sql (Only tsq)
+      params = DynamicParams (toField tsq : filterParams)
+  EP.query (fromString sqlText) params
 
 -- (user, mod, version)
 selectByTsQueryInPkg ::
@@ -164,3 +176,20 @@ runMigrations = EP.withTransaction $ do
 
   logInfo_ "Migrations done."
   pure ()
+
+renderPackageFilters :: QueryModifiers -> (String, [Action])
+renderPackageFilters QueryModifiers{includePackages, excludePackages} =
+  let (includeSql, includeParams) = clauses " AND (" " OR " ")" includePackages
+      (excludeSql, excludeParams) = clauses " AND NOT (" " OR " ")" excludePackages
+   in (includeSql <> excludeSql, includeParams <> excludeParams)
+  where
+    clauses :: String -> String -> String -> [[Text]] -> (String, [Action])
+    clauses prefix joiner suffix rawSegments =
+      let useful = filter (not . null) rawSegments
+       in if null useful
+            then ("", [])
+            else
+              let placeholders = replicate (length useful) "pkg_path = ?"
+                  sqlFragment = prefix <> intercalate joiner placeholders <> suffix
+                  params = map (toField . PGArray) useful
+               in (sqlFragment, params)
