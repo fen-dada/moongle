@@ -147,7 +147,7 @@ Matching semantics
 - Useful modules:
   - Query AST and parser: `src/Moongle/Query/Syntax.hs`, `src/Moongle/Query/Parser.hs`
   - Tokenization/search: `src/Moongle/TypeSearch.hs`
-  - Database schema and queries: `src/Moongle/DB.hs`
+  - Database schema and queries: `src/Moongle/DB/Query.hs` and `src/Moongle/DB/Migrations.hs`
   - CLI/server entrypoints: `src/Moongle/CLI.hs`, `src/Moongle/App.hs`, `src/Moongle/Server.hs`
 
 Experimental UIs

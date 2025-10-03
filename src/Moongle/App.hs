@@ -1,104 +1,70 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Moongle.App (main) where
+module Moongle.App
+  ( AppEffects
+  , runApp
+  , runUpdate
+  , runServe
+  , runSearch
+  ) where
 
-import Control.Exception
-import Control.Lens
+import Control.Lens ((^.))
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
-import Data.Time (getCurrentTime)
-import Database.PostgreSQL.Simple qualified as PSQL
 import Effectful
-import Effectful.Concurrent
-import Effectful.Error.Static
-import Effectful.FileSystem
-import Effectful.Log
-import Effectful.PostgreSQL as EP hiding (query)
-import Effectful.Reader.Static
-import Log.Backend.StandardOutput
-import Moongle.CLI hiding (query)
-import Moongle.Config
-import Moongle.DB
-import Moongle.Env
-import Moongle.Query
-import Moongle.Query.Parser (text2Query)
-import Moongle.Registry
+import Effectful.Concurrent (Concurrent)
+import Effectful.Error.Static (Error)
+import Effectful.FileSystem (FileSystem)
+import Effectful.Log (Log, logInfo_)
+import Effectful.PostgreSQL (WithConnection)
+import Effectful.Reader.Static (Reader, asks)
+import Moongle.CLI (Cmd (..), SearchOpts (..), ServeOpts, UpdateOpts)
+import Moongle.Config (Config, parallel)
+import Moongle.Env (Env)
+import Moongle.Query.Indexer (parseAllMbtiWithPkg, upsertPackages)
+import Moongle.Query.Search qualified as Query
+import Moongle.Registry.Fetch (fetchAllPackages)
 import Moongle.Server (server)
-import Network.HTTP.Client (newManager)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
-import System.Exit
 
-main :: IO ()
-main = do
-  -- parse CLI once
-  (cmd, cliOpts) <- runEff args
+import Moongle.DB.Migrations (runMigrations)
 
-  -- build Config (needs FileSystem to get $HOME)
-  econfig <- runEff $ runFileSystem $ runErrorNoCallStack $ genConfig cliOpts
-  case econfig of
-    Left err -> do
-      putStrLn $ "Configuration error: " ++ err
-      exitFailure
-    Right config -> do
-      env <- mkEnv config
-      bracket
-        ( PSQL.connectPostgreSQL
-            ( "host="
-                <> encodeUtf8 (config ^. Moongle.Config.dbHost)
-                <> " port="
-                <> encodeUtf8 (T.pack (show (config ^. Moongle.Config.dbPort)))
-                <> " dbname="
-                <> encodeUtf8 (config ^. Moongle.Config.dbName)
-                <> " user="
-                <> encodeUtf8 (config ^. Moongle.Config.dbUser)
-                <> " password="
-                <> encodeUtf8 (config ^. Moongle.Config.dbPassword)
-            )
-        )
-        PSQL.close
-        \conn -> do
-          -- run the effect stack and dispatch on the command
-          result <- runEff $
-            withStdOutLogger \stdoutLogger ->
-              runErrorNoCallStack $
-                runLog "moongle" stdoutLogger defaultLogLevel $
-                  runReader config $
-                    runReader env $
-                      EP.runWithConnection conn $
-                        runFileSystem $
-                          runConcurrent $
-                            app cmd
+-- | All effects required by the CLI commands. We over-approximate slightly so
+-- the dispatcher can be polymorphic across commands.
+type AppEffects es =
+  ( Reader Env :> es
+  , Reader Config :> es
+  , Error String :> es
+  , Log :> es
+  , FileSystem :> es
+  , Concurrent :> es
+  , WithConnection :> es
+  , IOE :> es
+  )
 
-          case result of
-            Left err -> putStrLn $ "Error: " <> err
-            Right _ -> pure ()
+runApp :: AppEffects es => Cmd -> Eff es ()
+runApp = \case
+  Update opts -> runUpdate opts
+  Serve opts -> runServe opts
+  Search opts -> runSearch opts
 
-appUpdate :: (Reader Env :> es, Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, IOE :> es, EP.WithConnection :> es) => UpdateOpts -> Eff es ()
-appUpdate _o = do
+runUpdate :: AppEffects es => UpdateOpts -> Eff es ()
+runUpdate _opts = do
+  maxThreads <- asks (^. parallel)
+  logInfo_ $ "Updating registry using up to " <> showText maxThreads <> " workers"
   runMigrations
-  fetchAllPackages
+  fetchAllPackages maxThreads
   mbtis <- parseAllMbtiWithPkg
-  _s <- insertMbtiToDB mbtis
-  pure ()
+  _ <- upsertPackages mbtis
+  logInfo_ "Update finished"
 
-appServe :: (Reader Env :> es, Reader Config :> es, Error String :> es, Log :> es, IOE :> es, EP.WithConnection :> es) => ServeOpts -> Eff es ()
-appServe o = do
-  server o
+runServe :: AppEffects es => ServeOpts -> Eff es ()
+runServe = server
 
-appSearch :: (Error String :> es, Log :> es, Reader Config :> es, Reader Env :> es, IOE :> es, EP.WithConnection :> es) => SearchOpts -> Eff es ()
-appSearch (SearchOpts str l) = do
-  result <- query str
-  liftIO $ print (take l result)
+runSearch :: AppEffects es => SearchOpts -> Eff es ()
+runSearch (SearchOpts str limit) = do
+  result <- Query.query str
+  liftIO $ print (take limit result)
 
-app :: (Reader Env :> es, Error String :> es, Log :> es, Reader Config :> es, FileSystem :> es, Concurrent :> es, IOE :> es, EP.WithConnection :> es) => Cmd -> Eff es ()
-app = \case
-  Update o -> appUpdate o
-  Serve o -> appServe o
-  Search o -> appSearch o
-
-mkEnv :: config -> IO Env
-mkEnv _c = do
-  utcNow <- getCurrentTime
-  manager <- newManager tlsManagerSettings
-  pure $ Env utcNow manager
+showText :: Show a => a -> T.Text
+showText = T.pack . show

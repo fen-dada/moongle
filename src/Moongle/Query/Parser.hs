@@ -82,7 +82,7 @@ pQueryModifiers = do
 pPackageFilter :: Parser (FilterKind, [T.Text])
 pPackageFilter = do
   sign <- optionMaybe (oneOf "+-")
-  _ <- string "package:" <|> string "pkg:"
+  _ <- try (string "package:") <|> string "pkg:"
   raw <- many1 (satisfy isPkgChar)
   let segments = packageSegments (T.pack raw)
   when (null segments) $ fail "package selector cannot be empty"

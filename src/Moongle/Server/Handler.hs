@@ -10,10 +10,10 @@ import Effectful.Error.Static
 import Effectful.Log
 import Effectful.PostgreSQL (WithConnection)
 import Effectful.Reader.Static
-import Moongle.DB
+import Moongle.DB.Query (getStats)
 import Moongle.Env
-import Moongle.Query
 import Moongle.Query.Parser
+import Moongle.Query.Search (defSummaryToSearchHit, queryDefSummary)
 import Moongle.Server.Types
 import Servant qualified as S
 import Text.Parsec (parse)
@@ -34,17 +34,6 @@ searchHandler (ApiRequest (SearchReq qt _ _ _ _)) = do
       let res = SearchRes (length hits) hits
       logInfo_ $ "Search query: " <> qt <> ", found " <> T.pack (show (length hits)) <> " results"
       pure $ ApiResponse "ok" (Just res) Nothing
- where
-  defSummaryToSearchHit :: DefSummary -> SearchHit
-  defSummaryToSearchHit DefSummary{..} =
-    SearchHit
-      { user = username
-      , mod = mod
-      , package = package
-      , decl = prettySig
-      , score = 0
-      }
-
 statsHandler :: (Log :> es, Reader Env :> es, WithConnection :> es, IOE :> es) => Eff es (ApiResponse Stats)
 statsHandler = do
   (decls', modules') <- getStats

@@ -9,7 +9,7 @@ import Effectful.Dispatch.Dynamic
 import Effectful.Error.Static
 import Effectful.Log
 import Effectful.PostgreSQL (WithConnection)
-import Moongle.Query (query, queryText, queryType)
+import Moongle.Query.Search (query, queryText, queryType)
 import Moongle.Server.Types (SearchHit)
 
 -- | An effect for interacting with Moongle

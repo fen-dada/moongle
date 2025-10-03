@@ -10,7 +10,7 @@ import Data.Text qualified as T
 import Language.Moonbit.Mbti.Pretty (renderDecl)
 import Language.Moonbit.Mbti.Syntax
 import Moongle.DB.Types
-import Moongle.Registry
+import Moongle.Registry.Model
 import Moongle.TypeSearch (lexemesForFnDecl)
 
 mbtiToDefRows :: PackageId -> MbtiFile -> [DefRow]

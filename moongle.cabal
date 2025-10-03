@@ -60,28 +60,36 @@ library
 
     -- Modules exported by the library.
     exposed-modules:
-        Moongle.Registry
-        Moongle.Registry.Types
+        Effectful.Moongle
+        Moongle.App
+        Moongle.App.Runtime
+        Moongle.CLI
         Moongle.Config
-        Moongle.General.Utils
+        Moongle.Env
         Moongle.Query
         Moongle.Query.Parser
         Moongle.Query.Syntax
+        Moongle.Registry
+        Moongle.Registry.Types
         Moongle.Server
-        Moongle.Server.Types
         Moongle.Server.Handler
-        Moongle.Env
+        Moongle.Server.Types
         Moongle.TypeSearch
-        Moongle.DB
-        Moongle.DB.Types
-        Moongle.DB.Index
-        Moongle.CLI
-        Moongle.App
-
-        Effectful.Moongle
 
     -- Modules included in this library but not exported.
     other-modules:
+        Moongle.General.Utils
+        Moongle.DB.Definition
+        Moongle.DB.Index
+        Moongle.DB.Insert
+        Moongle.DB.Migrations
+        Moongle.DB.Query
+        Moongle.DB.Types
+        Moongle.Query.Indexer
+        Moongle.Query.Loader
+        Moongle.Query.Search
+        Moongle.Registry.Fetch
+        Moongle.Registry.Model
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -175,6 +183,8 @@ test-suite moongle-test
     build-depends:
         base,
         moongle,
+        hspec,
+        language-moonbit,
         effectful,
         bytestring,
         text,
@@ -187,4 +197,3 @@ test-suite moongle-test
         time,
         effectful-postgresql,
         postgresql-simple,
-

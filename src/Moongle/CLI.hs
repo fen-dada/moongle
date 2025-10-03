@@ -3,12 +3,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Moongle.CLI (
-  args,
   Cmd (..),
   UpdateOpts (..),
   ServeOpts (..),
   Opts (..),
   SearchOpts (..),
+  args,
+  parseArgsIO,
 )
 where
 
@@ -73,5 +74,8 @@ pOpts =
 pArgs :: ParserInfo (Cmd, Opts)
 pArgs = info ((,) <$> pCmd <*> pOpts <**> helper) (header "Moongle - Moonbit API search engine")
 
+parseArgsIO :: IO (Cmd, Opts)
+parseArgsIO = execParser pArgs
+
 args :: (IOE :> es) => Eff es (Cmd, Opts)
-args = liftIO $ execParser pArgs
+args = liftIO parseArgsIO

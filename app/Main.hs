@@ -1,6 +1,6 @@
-module Main where
+module Main (main) where
 
-import Moongle.App qualified as Moongle
+import Moongle.App.Runtime (runCliApp)
 
 main :: IO ()
-main = Moongle.main
+main = runCliApp
